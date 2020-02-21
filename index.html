@@ -1,0 +1,159 @@
+<!DOCTYPE>
+<html>
+	<head>
+		<title>Prototype</title>
+		<script type="text/javascript" src="three.min.js"></script>
+        <script type="text/javascript" src="https://rawgit.com/mrdoob/stats.js/master/build/stats.min.js"></script>
+        <script type="text/javascript" src="dat.gui.min.js"></script>
+		<script type="text/javascript">
+		
+            // SETUP
+			var renderer, scene, camera;
+			var lookAt = new THREE.Vector3(0.0, 0.0, 0.0);
+			var viewerPosition = new THREE.Vector3(0.0, 10.0, 0.0);
+            
+            // STATS
+            var stats = new Stats();
+            stats.showPanel( 0 );
+		
+			function onLoad() { 
+				var canvasContainer = document.getElementById('myCanvasContainer');
+                document.body.appendChild( stats.dom );
+                
+				var width = 1200; 
+				var height = 800;
+				
+                renderer = new THREE.WebGLRenderer(); 
+                renderer.setSize(width, height);
+                canvasContainer.appendChild(renderer.domElement);
+                
+				camera = new THREE.PerspectiveCamera( 70, width/height, 0.01, 1000 );
+				camera.position.set(viewerPosition.x, viewerPosition.y, viewerPosition.z);
+				camera.up = new THREE.Vector3(0, 1, 0);
+				camera.lookAt(lookAt);
+                
+                scene = new THREE.Scene();
+                
+                
+                var hex_width = 2;
+                var hex_height = 1.73;
+                var hexes = [];
+                
+                var rows = 17;
+                var ver_offset = (rows-1)/2*hex_height;
+                
+                for (var i = 0; i < rows; i++) {
+                    var row_hexes = []
+                    
+                    var hexes_in_row = 2+Math.min(i, rows-i-1)
+                    var hor_offset = (hexes_in_row-1)/2*hex_width;
+                    
+                    for (var j = 0; j < hexes_in_row; j++) {
+                        var hex = createHex(new THREE.Vector3(j*hex_width-hor_offset, Math.random()*2, i*hex_height-ver_offset));
+                        row_hexes.push(hex);
+                    }
+                    hexes.push(row_hexes);
+                }
+                
+                hexes[1][2].centre.y = 2;
+                hexes[1][2].debugModel.position.y = 2;
+                
+                hexes[3][2].centre.y = 2;
+                hexes[3][2].debugModel.position.y = 2;
+                
+                hexes[3][3].centre.y = -1;
+                hexes[3][3].debugModel.position.y = -1;
+                
+                for (var row = 1; row < hexes.length-1; row++) {
+                    for (var i = 1; i < hexes[row].length-1; i++) {
+                        if (row < (rows-1)/2) {
+                            createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i-1], hexes[row-1][i], hexes[row][i+1], hexes[row+1][i+1], hexes[row+1][i] ])
+                        } else if (row > (rows-1)/2) {
+                            createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i], hexes[row-1][i+1], hexes[row][i+1], hexes[row+1][i], hexes[row+1][i-1] ])
+                        } else {
+                            createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i-1], hexes[row-1][i], hexes[row][i+1], hexes[row+1][i], hexes[row+1][i-1] ])
+                        }
+                    }
+                }
+                
+				draw();
+			}
+            
+            function createHex(centre) {
+                var geometry = new THREE.SphereGeometry( 0.1, 20, 20 );
+                var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
+                var mesh = new THREE.Mesh( geometry, material );
+                mesh.position.copy(centre);
+                
+                var hex = {centre: centre, neighbours: [], debugModel: mesh};
+                
+                scene.add(mesh)
+                
+                return hex;
+            }
+            
+            function createShape(hex, neigbours) {
+                hex.neighbours = neigbours;
+                var geometry = createGeometry(hex);
+                var material = new THREE.MeshNormalMaterial( { color: 0xff0000, side:THREE.DoubleSide } );
+                var mesh = new THREE.Mesh( geometry, material );
+                mesh.position.copy(hex.centre);
+                scene.add(mesh);
+            }
+            
+            function createGeometry(hex) {
+                var geometry = new THREE.BufferGeometry();
+                
+                var edge_vertices = []
+                for (var i = 0; i < hex.neighbours.length; i++) {
+                    var j = (i+1) % hex.neighbours.length;
+                    var vertex = new THREE.Vector3().addVectors(hex.neighbours[i].centre, hex.neighbours[j].centre).sub(hex.centre).sub(hex.centre).divideScalar(3);
+                    edge_vertices.push(vertex);
+                }
+                console.log(edge_vertices);
+                var vertices = []
+                for (var i = 0; i < edge_vertices.length; i++) {
+                    var j = (i+1) % edge_vertices.length;
+                    
+                    vertices.push(0,0,0);
+                    vertices.push(...edge_vertices[i].toArray());
+                    vertices.push(...edge_vertices[j].toArray());
+                }
+                vertices = new Float32Array(vertices);
+                
+                geometry.setAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
+                geometry.computeVertexNormals();
+                
+                return geometry;
+            }
+            
+            function createGUI() {
+                var gui = new dat.GUI();
+            }
+ 
+			var tick = 0
+			function draw() {
+                requestAnimationFrame(draw);
+                
+                stats.begin();
+                tick += 1;
+                
+                camera.position.set(10*Math.sin(tick*0.01), viewerPosition.y, 10*Math.cos(tick*0.01));
+                camera.lookAt(lookAt);
+                
+                renderer.render( scene, camera );
+                
+                stats.end();
+			}
+
+		</script>
+
+	</head>
+	<body onload="onLoad()">
+		<div id="myCanvasContainer"></div>
+		<div id="statusContainer">
+			<span>Test</span>
+			<span>C1</span>
+		</div>
+	</body>
+</html>
