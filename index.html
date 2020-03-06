@@ -79,13 +79,14 @@
 				draw();
 			}
             
+            var latestID = 0;
             function createHex(centre) {
                 var geometry = new THREE.SphereGeometry( 0.1, 20, 20 );
                 var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
                 var mesh = new THREE.Mesh( geometry, material );
                 mesh.position.copy(centre);
                 
-                var hex = {centre: centre, neighbours: [], debugModel: mesh};
+                var hex = {id: latestID++, centre: centre, neighbours: [], neigbourData: [], debugModel: mesh};
                 
                 scene.add(mesh)
                 
@@ -94,37 +95,97 @@
             
             function createShape(hex, neigbours) {
                 hex.neighbours = neigbours;
-                var geometry = createGeometry(hex);
+                for (neigbour of neigbours) {
+                    cliff = false;
+                    
+                    if ( (hex.id + neigbour.id) % 3 == 1) {
+                        cliff = true;
+                    }
+                    
+                    hex.neigbourData.push({cliff: cliff});
+                }
+                var comb_geom = createGeometry(hex);
+                
+                var geometry = comb_geom[0];
                 var material = new THREE.MeshNormalMaterial( { color: 0xff0000, side:THREE.DoubleSide } );
                 var mesh = new THREE.Mesh( geometry, material );
+                mesh.position.copy(hex.centre);
+                scene.add(mesh);
+                
+                var cliff_geometry = comb_geom[1];
+                
+                var material = new THREE.MeshNormalMaterial( { color: 0xff0000, side:THREE.DoubleSide } );
+                var mesh = new THREE.Mesh( cliff_geometry, material );
                 mesh.position.copy(hex.centre);
                 scene.add(mesh);
             }
             
             function createGeometry(hex) {
                 var geometry = new THREE.BufferGeometry();
+                var cliffGeometry = new THREE.BufferGeometry();
                 
                 var edge_vertices = []
                 for (var i = 0; i < hex.neighbours.length; i++) {
                     var j = (i+1) % hex.neighbours.length;
                     var vertex = new THREE.Vector3().addVectors(hex.neighbours[i].centre, hex.neighbours[j].centre).sub(hex.centre).sub(hex.centre).divideScalar(3);
-                    edge_vertices.push(vertex);
+                    
+                    if (hex.neigbourData[i].cliff) {
+                        var midVertex = new THREE.Vector3().copy(hex.neighbours[i].centre).sub(hex.centre).divideScalar(2);
+                        //midVertex.y = 0;
+                        midVertex.y /= 3;
+                        midVertex.cliff = true;
+                        
+                        if (hex.neigbourData[j].cliff) {
+                            vertex.cliff_edge = vertex.clone();
+                            //vertex.y = 0;
+                            vertex.y /= 3;
+                        }
+                        
+                        edge_vertices.push(midVertex, vertex);
+                    } else {
+                        edge_vertices.push(vertex);
+                    }
                 }
-                console.log(edge_vertices);
-                var vertices = []
+                //console.log(edge_vertices);
+                var vertices = [];
+                var cliff_vertices = [];
                 for (var i = 0; i < edge_vertices.length; i++) {
                     var j = (i+1) % edge_vertices.length;
                     
                     vertices.push(0,0,0);
                     vertices.push(...edge_vertices[i].toArray());
                     vertices.push(...edge_vertices[j].toArray());
+                    
+                    if (edge_vertices[j].cliff) {
+                        var k = (i+2) % edge_vertices.length;
+                        cliff_vertices.push(...( (edge_vertices[i].cliff_edge) ? edge_vertices[i].cliff_edge.toArray() : edge_vertices[i].toArray()));
+                        cliff_vertices.push(...( (edge_vertices[k].cliff_edge) ? edge_vertices[k].cliff_edge.toArray() : edge_vertices[k].toArray()));
+                        cliff_vertices.push(...edge_vertices[j].toArray());
+                    }
+                    
+                    if (edge_vertices[j].cliff_edge) {
+                        var k = (i+2) % edge_vertices.length;
+                        
+                        cliff_vertices.push(...edge_vertices[j].cliff_edge.toArray());
+                        cliff_vertices.push(...edge_vertices[i].toArray());
+                        cliff_vertices.push(...edge_vertices[j].toArray());
+                        
+                        cliff_vertices.push(...edge_vertices[j].cliff_edge.toArray());
+                        cliff_vertices.push(...edge_vertices[j].toArray());
+                        cliff_vertices.push(...edge_vertices[k].toArray());
+                    }
+                    
                 }
                 vertices = new Float32Array(vertices);
+                cliff_vertices = new Float32Array(cliff_vertices);
                 
                 geometry.setAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
                 geometry.computeVertexNormals();
                 
-                return geometry;
+                cliffGeometry.setAttribute( 'position', new THREE.BufferAttribute( cliff_vertices, 3 ) );
+                cliffGeometry.computeVertexNormals();
+                
+                return [geometry, cliffGeometry];
             }
             
             function createGUI() {
@@ -138,7 +199,7 @@
                 stats.begin();
                 tick += 1;
                 
-                camera.position.set(10*Math.sin(tick*0.01), viewerPosition.y, 10*Math.cos(tick*0.01));
+                camera.position.set(10*Math.sin(tick*0.005), viewerPosition.y, 10*Math.cos(tick*0.005));
                 camera.lookAt(lookAt);
                 
                 renderer.render( scene, camera );
