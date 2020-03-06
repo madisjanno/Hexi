@@ -167,7 +167,7 @@
                             var drop = hex.centre.y - lowest;
                             
                             if (drop < 0)
-                                continue;
+                                drop = 1;
                             
                             cliff_vertices.push(...edge_vertices[i].toArray())
                             cliff_vertices.push(...edge_vertices[j].toArray())
