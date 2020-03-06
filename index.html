@@ -34,7 +34,6 @@
                 
                 scene = new THREE.Scene();
                 
-                
                 var hex_width = 2;
                 var hex_height = 1.73;
                 var hexes = [];
@@ -81,6 +80,8 @@
             
             var latestID = 0;
             function createHex(centre) {
+                if (latestID == 50) centre.y = 5
+                
                 var geometry = new THREE.SphereGeometry( 0.1, 20, 20 );
                 var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
                 var mesh = new THREE.Mesh( geometry, material );
