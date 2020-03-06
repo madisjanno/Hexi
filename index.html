@@ -98,7 +98,7 @@
                 for (neigbour of neigbours) {
                     cliff = false;
                     
-                    if ( (hex.id + neigbour.id) % 3 == 1) {
+                    if ( (hex.id + neigbour.id) % 5 == 1) {
                         cliff = true;
                     }
                     
@@ -114,7 +114,7 @@
                 
                 var cliff_geometry = comb_geom[1];
                 
-                var material = new THREE.MeshNormalMaterial( { color: 0xff0000, side:THREE.DoubleSide } );
+                var material = new THREE.MeshNormalMaterial( { color: 0xff0000 /*, side:THREE.DoubleSide*/ } );
                 var mesh = new THREE.Mesh( cliff_geometry, material );
                 mesh.position.copy(hex.centre);
                 scene.add(mesh);
@@ -131,9 +131,16 @@
                     
                     if (hex.neigbourData[i].cliff) {
                         var midVertex = new THREE.Vector3().copy(hex.neighbours[i].centre).sub(hex.centre).divideScalar(2);
+                        var midVertexReflect = midVertex.clone();
+                        midVertexReflect.y = (midVertex.y*2*(1-1/6))
+                        midVertex.reflect = midVertexReflect;
+                        
                         //midVertex.y = 0;
                         midVertex.y /= 3;
+                        
                         midVertex.cliff = true;
+                        midVertex.id = i;
+                        midVertex.higher = hex.centre.y > hex.neighbours[i].centre.y;
                         
                         if (hex.neigbourData[j].cliff) {
                             vertex.cliff_edge = vertex.clone();
@@ -158,9 +165,24 @@
                     
                     if (edge_vertices[j].cliff) {
                         var k = (i+2) % edge_vertices.length;
-                        cliff_vertices.push(...( (edge_vertices[i].cliff_edge) ? edge_vertices[i].cliff_edge.toArray() : edge_vertices[i].toArray()));
-                        cliff_vertices.push(...( (edge_vertices[k].cliff_edge) ? edge_vertices[k].cliff_edge.toArray() : edge_vertices[k].toArray()));
-                        cliff_vertices.push(...edge_vertices[j].toArray());
+                        
+                        if (edge_vertices[j].higher && edge_vertices[j].y < (edge_vertices[i].y+edge_vertices[k].y)/2 )
+                            continue;
+                        
+                        if (!edge_vertices[j].higher && edge_vertices[j].reflect.y < (edge_vertices[i].y+edge_vertices[k].y)/2 ) {
+                            
+                            cliff_vertices.push(...( (edge_vertices[k].cliff_edge) ? edge_vertices[k].cliff_edge.toArray() : edge_vertices[k].toArray()));
+                            cliff_vertices.push(...edge_vertices[j].reflect.toArray());
+                            cliff_vertices.push(...edge_vertices[j].toArray());
+                            
+                            cliff_vertices.push(...edge_vertices[j].reflect.toArray());
+                            cliff_vertices.push(...( (edge_vertices[i].cliff_edge) ? edge_vertices[i].cliff_edge.toArray() : edge_vertices[i].toArray()));
+                            cliff_vertices.push(...edge_vertices[j].toArray());
+                        } else {
+                            cliff_vertices.push(...( (edge_vertices[k].cliff_edge) ? edge_vertices[k].cliff_edge.toArray() : edge_vertices[k].toArray()));
+                            cliff_vertices.push(...( (edge_vertices[i].cliff_edge) ? edge_vertices[i].cliff_edge.toArray() : edge_vertices[i].toArray()));
+                            cliff_vertices.push(...edge_vertices[j].toArray());
+                        }
                     }
                     
                     if (edge_vertices[j].cliff_edge) {
