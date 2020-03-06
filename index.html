@@ -114,7 +114,7 @@
                 
                 var cliff_geometry = comb_geom[1];
                 
-                var material = new THREE.MeshNormalMaterial( { color: 0xff0000 /*, side:THREE.DoubleSide*/ } );
+                var material = new THREE.MeshNormalMaterial( { color: 0xff0000 , side:THREE.DoubleSide } );
                 var mesh = new THREE.Mesh( cliff_geometry, material );
                 mesh.position.copy(hex.centre);
                 scene.add(mesh);
