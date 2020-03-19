@@ -10,11 +10,30 @@
             // SETUP
 			var renderer, scene, camera;
 			var lookAt = new THREE.Vector3(0.0, 0.0, 0.0);
-			var viewerPosition = new THREE.Vector3(0.0, 10.0, 0.0);
+			var viewerPosition = new THREE.Vector3(10.0, 10.0, 20.0);
             
             // STATS
             var stats = new Stats();
             stats.showPanel( 0 );
+            
+            // DEBUG
+            var debugGeometry = new THREE.SphereGeometry( 0.1, 20, 20 );
+            
+            // STUFF
+            var hexes = [];
+            var hexArray = [];
+            
+            var triplets = [];
+            var tripletArray = [];
+            
+            var edges = [];
+            
+            // UI
+            var dragging = false;
+            var prevX = 0;
+            var prevY = 0;
+            var horAngle = 0;
+            var vertAngle = 0;
 		
 			function onLoad() { 
 				var canvasContainer = document.getElementById('myCanvasContainer');
@@ -27,7 +46,7 @@
                 renderer.setSize(width, height);
                 canvasContainer.appendChild(renderer.domElement);
                 
-				camera = new THREE.PerspectiveCamera( 70, width/height, 0.01, 1000 );
+				camera = new THREE.PerspectiveCamera( 30, width/height, 0.01, 1000 );
 				camera.position.set(viewerPosition.x, viewerPosition.y, viewerPosition.z);
 				camera.up = new THREE.Vector3(0, 1, 0);
 				camera.lookAt(lookAt);
@@ -36,7 +55,6 @@
                 
                 var hex_width = 2;
                 var hex_height = 1.73;
-                var hexes = [];
                 
                 var rows = 17;
                 var ver_offset = (rows-1)/2*hex_height;
@@ -75,50 +93,214 @@
                     }
                 }
                 
+                
+                
+                
+                
+                
+                generateTriplets();
+                
+                var terrainGeom = createTerrainGeometry();
+                terrainGeom.computeVertexNormals();
+                
+                var material = new THREE.MeshPhongMaterial( {color: 0xffffff, flatShading:false} );
+                var mesh = new THREE.Mesh( terrainGeom, material );
+                scene.add(mesh);
+                
+                var directionalLight = new THREE.DirectionalLight( 0xffffff, 1 );
+                directionalLight.position.set(10, 10, 10)
+                scene.add( directionalLight );
+                
+                
+                renderer.domElement.addEventListener( 'mousedown', event => {
+                    dragging = true;
+                    prevX = event.offsetX;
+                    prevY = event.offsetY;
+                }, false );
+                renderer.domElement.addEventListener( 'mouseup', event => dragging = false, false );
+                renderer.domElement.addEventListener( 'mousemove', event => {
+                    if (dragging) {
+                        horAngle -= (event.offsetX-prevX)/40
+                        vertAngle -= (event.offsetY-prevY)/40
+                        
+                        if (vertAngle < 0.000001)
+                            vertAngle = 0.000001;
+                        if (vertAngle > Math.PI)
+                            vertAngle = Math.PI;
+
+                        prevX = event.offsetX;
+                        prevY = event.offsetY;
+                    }
+                }, false );
+                
 				draw();
 			}
+            
+            var triplet_vertex_index = 0;
+            function generateTriplets() {
+                for (var i = 0; i < latestID; i++) {
+                    triplets.push([])
+                }
+                
+                for (hex of hexArray) {
+                    generateHexTriplets(hex);
+                }
+            }
+            
+            function generateHexTriplets(hex) {
+                var j = 0;
+                for (var i = 0; i < hex.neighbours.length; i++) {
+                    j = (i+1) % hex.neighbours.length;
+                    
+                    tri = getTriplet(hex, hex.neighbours[i], hex.neighbours[j], generate=true)
+                    if (tri.ready)
+                        continue;
+                    tri.ready = true;
+                    tri.position =  hex.centre.clone().add(hex.neighbours[i].centre).add(hex.neighbours[j].centre).divideScalar(3);
+                    tri.id = triplet_vertex_index++;
+                    tripletArray.push(tri);
+                    
+                    var material = new THREE.MeshBasicMaterial( { color: 0xff0000 } );
+                    var mesh = new THREE.Mesh( debugGeometry, material );
+                    
+                    mesh.position.copy( tri.position );
+                    
+                    //scene.add(mesh)
+                }
+            }
+            
+            function getTriplet(a,b,c, generate=false) {
+                if (a.isHex)
+                    a = a.id;
+                if (b.isHex)
+                    b = b.id;
+                if (c.isHex)
+                    c = c.id;
+                
+                if (a > b) {
+                    a = b + (b=a, 0)
+                }
+                if (b > c) {
+                    c = b + (b=c, 0)
+                    
+                    if (a > b) {
+                        a = b + (b=a, 0)
+                    }
+                }
+                
+                for (p of triplets[a]) {
+                    if (p.b == b && p.c == c) {
+                        return p;
+                    }
+                }
+                if (generate) {
+                    var n = {a:a,b:b,c:c};
+                    triplets[a].push(n)
+                    return n;
+                } else
+                    throw new Error("Triplet " + [a,b,c] + " not found.")
+            }
+            
+            function getEdge(a,b) {
+                if (a > b) {
+                    a = b + (b=a, 0)
+                }
+                
+                for (p of edges[a]) {
+                    if (p.b == b) {
+                        return p;
+                    } 
+                }
+            }
             
             var latestID = 0;
             function createHex(centre) {
                 if (latestID == 50) centre.y = 5
                 
-                var geometry = new THREE.SphereGeometry( 0.1, 20, 20 );
                 var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
-                var mesh = new THREE.Mesh( geometry, material );
+                var mesh = new THREE.Mesh( debugGeometry, material );
                 mesh.position.copy(centre);
                 
-                var hex = {id: latestID++, centre: centre, neighbours: [], neigbourData: [], debugModel: mesh};
+                var hex = {id: latestID++, centre: centre, neighbours: [], neighboursData: [], debugModel: mesh, isHex:true};
+                hexArray.push(hex);
                 
-                scene.add(mesh)
+                //scene.add(mesh)
                 
                 return hex;
             }
             
-            function createShape(hex, neigbours) {
-                hex.neighbours = neigbours;
-                for (neigbour of neigbours) {
+            function createTerrainGeometry() {
+                var geometry = new THREE.BufferGeometry();
+                var vertexArray = [];
+                
+                // Gather all Vector3 positions
+                var vertices = []
+                for (hex of hexArray) {
+                    vertices.push(hex.centre);
+                }
+                
+                var tri_offset = vertices.length;
+                
+                for (triplet of tripletArray) {
+                    vertices.push(triplet.position);
+                }
+                
+                // Convert to typed array of floats
+                for (vertex of vertices) {
+                    vertexArray.push(vertex.x, vertex.y, vertex.z);
+                }
+                vertexArray = new Float32Array(vertexArray);
+                
+                // Create faces
+                var faceArray = [];
+                for (hex of hexArray) {
+                    var tri = [];
+                    
+                    for (var i  = 0; i < hex.neighbours.length; i++) {
+                        var j = (i+1) % hex.neighbours.length;
+                        tri.push(getTriplet(hex, hex.neighbours[i], hex.neighbours[j]));
+                    }
+                    
+                    for (var i = 0; i < tri.length; i++) {
+                        var j = (i+1) % tri.length;
+                        
+                        faceArray.push(hex.id, tri_offset+tri[j].id, tri_offset+tri[i].id);
+                    }
+                }
+                
+                
+                geometry.setIndex( faceArray );
+                
+                geometry.setAttribute( 'position', new THREE.BufferAttribute( vertexArray, 3 ) );
+                
+                return geometry;
+            }
+            
+            function createShape(hex, neighbours) {
+                hex.neighbours = neighbours;
+                for (neighbours of neighbours) {
                     cliff = false;
                     
-                    if ( (hex.id + neigbour.id) % 5 == 1) {
+                    if ( (hex.id + neighbours.id) % 5 == 1) {
                         cliff = true;
                     }
                     
-                    hex.neigbourData.push({cliff: cliff});
+                    hex.neighboursData.push({cliff: cliff});
                 }
                 var comb_geom = createGeometry(hex);
                 
                 var geometry = comb_geom[0];
-                var material = new THREE.MeshNormalMaterial( { color: 0xff0000, side:THREE.DoubleSide } );
+                var material = new THREE.MeshPhongMaterial( { color: 0xffffff, side:THREE.DoubleSide } );
                 var mesh = new THREE.Mesh( geometry, material );
                 mesh.position.copy(hex.centre);
-                scene.add(mesh);
+                //scene.add(mesh);
                 
                 var cliff_geometry = comb_geom[1];
                 
-                var material = new THREE.MeshNormalMaterial( { color: 0xff0000 /*, side:THREE.DoubleSide*/ } );
+                var material = new THREE.MeshPhongMaterial( { color: 0xffffff /*, side:THREE.DoubleSide*/ } );
                 var mesh = new THREE.Mesh( cliff_geometry, material );
                 mesh.position.copy(hex.centre);
-                scene.add(mesh);
+                //scene.add(mesh);
             }
             
             function createGeometry(hex) {
@@ -130,7 +312,7 @@
                     var j = (i+1) % hex.neighbours.length;
                     var vertex = new THREE.Vector3().addVectors(hex.neighbours[i].centre, hex.neighbours[j].centre).sub(hex.centre).sub(hex.centre).divideScalar(3);
                     
-                    if (hex.neigbourData[i].cliff) {
+                    if (hex.neighboursData[i].cliff) {
                         var midVertex = new THREE.Vector3().copy(hex.neighbours[i].centre).sub(hex.centre).divideScalar(2);
                         
                         midVertex.y /= 2;
@@ -138,7 +320,7 @@
                         midVertex.cliff = true;
                         midVertex.id = i;
                         
-                        if (hex.neigbourData[j].cliff) {
+                        if (hex.neighboursData[j].cliff) {
                             vertex.cliff_edge = true;
                             vertex.y /= 2;
                         }
@@ -215,7 +397,7 @@
                 stats.begin();
                 tick += 1;
                 
-                camera.position.set(10*Math.sin(tick*0.005), viewerPosition.y, 10*Math.cos(tick*0.005));
+                camera.position.set(30*Math.sin(horAngle)*Math.sin(vertAngle), 30*Math.cos(vertAngle), 30*Math.cos(horAngle)*Math.sin(vertAngle) );
                 camera.lookAt(lookAt);
                 
                 renderer.render( scene, camera );
