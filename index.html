@@ -27,6 +27,7 @@
             var tripletArray = [];
             
             var edges = [];
+            var edgeArray = [];
             
             // UI
             var dragging = false;
@@ -66,7 +67,8 @@
                     var hor_offset = (hexes_in_row-1)/2*hex_width;
                     
                     for (var j = 0; j < hexes_in_row; j++) {
-                        var hex = createHex(new THREE.Vector3(j*hex_width-hor_offset, Math.random()*2, i*hex_height-ver_offset));
+                        var active = j > 0 & j < (hexes_in_row-1);
+                        var hex = createHex(new THREE.Vector3(j*hex_width-hor_offset, Math.random()*2, i*hex_height-ver_offset), active);
                         row_hexes.push(hex);
                     }
                     hexes.push(row_hexes);
@@ -81,24 +83,59 @@
                 hexes[3][3].centre.y = -1;
                 hexes[3][3].debugModel.position.y = -1;
                 
+                // NEIGHBOURS INIT
                 for (var row = 1; row < hexes.length-1; row++) {
                     for (var i = 1; i < hexes[row].length-1; i++) {
                         if (row < (rows-1)/2) {
-                            createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i-1], hexes[row-1][i], hexes[row][i+1], hexes[row+1][i+1], hexes[row+1][i] ])
+                            createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i-1], hexes[row-1][i], hexes[row][i+1], hexes[row+1][i+1], hexes[row+1][i] ]);
                         } else if (row > (rows-1)/2) {
-                            createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i], hexes[row-1][i+1], hexes[row][i+1], hexes[row+1][i], hexes[row+1][i-1] ])
+                            createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i], hexes[row-1][i+1], hexes[row][i+1], hexes[row+1][i], hexes[row+1][i-1] ]);
                         } else {
-                            createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i-1], hexes[row-1][i], hexes[row][i+1], hexes[row+1][i], hexes[row+1][i-1] ])
+                            createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i-1], hexes[row-1][i], hexes[row][i+1], hexes[row+1][i], hexes[row+1][i-1] ]);
                         }
                     }
                 }
                 
+                // EDGES
+                for (var row = 1; row < hexes.length-1; row++) {
+                    var i = 0;
+                    
+                    if (row < (rows-1)/2) {
+                        createShape(hexes[row][i], [ hexes[row-1][i], hexes[row][i+1], hexes[row+1][i+1], hexes[row+1][i] ]);
+                    } else if (row > (rows-1)/2) {
+                        createShape(hexes[row][i], [ hexes[row-1][i], hexes[row-1][i+1], hexes[row][i+1], hexes[row+1][i] ]);
+                    } else {
+                        createShape(hexes[row][i], [ hexes[row-1][i], hexes[row][i+1], hexes[row+1][i] ]);
+                    }
+                    
+                    var i = hexes[row].length-1;
+                    
+                    if (row < (rows-1)/2) {
+                        createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i-1], hexes[row+1][i+1], hexes[row+1][i] ]);
+                    } else if (row > (rows-1)/2) {
+                        createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i], hexes[row-1][i+1], hexes[row+1][i-1] ]);
+                    } else {
+                        createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i-1], hexes[row+1][i-1] ]);
+                    }
+                }
                 
+                // TOP/BOTTOM
+                var row = 0;
+                var i = 0;
+                createShape(hexes[row][i], [ hexes[row][i+1], hexes[row+1][i+1], hexes[row+1][i] ]);
+                var row = 0;
+                var i = 1;
+                createShape(hexes[row][i], [ hexes[row][i-1], hexes[row+1][i+1], hexes[row+1][i] ]);
+                var row = hexes.length-1;
+                var i = 0;
+                createShape(hexes[row][i], [ hexes[row-1][i], hexes[row-1][i+1], hexes[row][i+1] ]);
+                var row = hexes.length-1;
+                var i = 1;
+                createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i-1], hexes[row-1][i] ]);
                 
-                
-                
-                
+                generateEdges();
                 generateTriplets();
+                finishEdges();
                 
                 var terrainGeom = createTerrainGeometry();
                 terrainGeom.computeVertexNormals();
@@ -136,13 +173,23 @@
 				draw();
 			}
             
-            var triplet_vertex_index = 0;
+            function createDebugSphere(position, color) {
+                var material = new THREE.MeshBasicMaterial( { color: color } );
+                var mesh = new THREE.Mesh( debugGeometry, material );
+                mesh.position.copy( position );
+                scene.add(mesh)
+                return mesh;
+            }
+            
             function generateTriplets() {
                 for (var i = 0; i < latestID; i++) {
                     triplets.push([])
                 }
                 
                 for (hex of hexArray) {
+                    if (!hex.active)
+                        continue;
+                    
                     generateHexTriplets(hex);
                 }
             }
@@ -153,19 +200,6 @@
                     j = (i+1) % hex.neighbours.length;
                     
                     tri = getTriplet(hex, hex.neighbours[i], hex.neighbours[j], generate=true)
-                    if (tri.ready)
-                        continue;
-                    tri.ready = true;
-                    tri.position =  hex.centre.clone().add(hex.neighbours[i].centre).add(hex.neighbours[j].centre).divideScalar(3);
-                    tri.id = triplet_vertex_index++;
-                    tripletArray.push(tri);
-                    
-                    var material = new THREE.MeshBasicMaterial( { color: 0xff0000 } );
-                    var mesh = new THREE.Mesh( debugGeometry, material );
-                    
-                    mesh.position.copy( tri.position );
-                    
-                    //scene.add(mesh)
                 }
             }
             
@@ -194,14 +228,113 @@
                     }
                 }
                 if (generate) {
-                    var n = {a:a,b:b,c:c};
+                    var n = generateTriplet(hexArray[a],hexArray[b],hexArray[c]);
                     triplets[a].push(n)
                     return n;
                 } else
                     throw new Error("Triplet " + [a,b,c] + " not found.")
             }
             
-            function getEdge(a,b) {
+            var triplet_id = 0;
+            var triplet_vertex_index = 0;
+            function generateTriplet(a,b,c) {
+                var triplet = {a:a.id,b:b.id,c:c.id};
+                triplet.id = triplet_id++;
+                triplet.vertex_index = triplet_vertex_index;
+                tripletArray.push(triplet);
+                
+                triplet.position =  a.centre.clone().add(b.centre).add(c.centre).divideScalar(3);
+                
+                var ab = getEdge(a,b);
+                var bc = getEdge(c,b);
+                var ac = getEdge(c,a);
+                
+                ab.triplets.push(triplet);
+                bc.triplets.push(triplet);
+                ac.triplets.push(triplet);
+                
+                if (ab.cliff & bc.cliff & ac.cliff) {
+                    triplet.a_pos = triplet.position.clone().setComponent(1, a.centre.y);
+                    triplet.b_pos = triplet.position.clone().setComponent(1, b.centre.y);
+                    triplet.c_pos = triplet.position.clone().setComponent(1, c.centre.y);
+                    
+                    triplet.a_pos.index = triplet_vertex_index++;
+                    triplet.b_pos.index = triplet_vertex_index++;
+                    triplet.c_pos.index = triplet_vertex_index++;
+                    
+                    triplet.vertArr = [triplet.a_pos, triplet.b_pos, triplet.c_pos];
+                    
+                    createDebugSphere(triplet.a_pos, 0xff0000 );
+                    createDebugSphere(triplet.b_pos, 0xff0000 );
+                    createDebugSphere(triplet.c_pos, 0xff0000 );
+                } else if (ab.cliff & bc.cliff) {
+                    triplet.a_pos = triplet.position.clone().setComponent(1, (a.centre.y+c.centre.y)/2 );
+                    triplet.b_pos = triplet.position.clone().setComponent(1, b.centre.y);
+                    triplet.c_pos = triplet.a_pos;
+                    
+                    triplet.a_pos.index = triplet_vertex_index++;
+                    triplet.b_pos.index = triplet_vertex_index++;
+                    
+                    triplet.vertArr = [triplet.a_pos, triplet.b_pos];
+                    
+                    createDebugSphere(triplet.a_pos, 0xff0000 );
+                    createDebugSphere(triplet.b_pos, 0xff0000 );
+                } else if (ab.cliff & ac.cliff) {
+                    triplet.a_pos = triplet.position.clone().setComponent(1, a.centre.y);
+                    triplet.b_pos = triplet.position.clone().setComponent(1, (b.centre.y+c.centre.y)/2 );
+                    triplet.c_pos = triplet.b_pos;
+                    
+                    triplet.a_pos.index = triplet_vertex_index++;
+                    triplet.b_pos.index = triplet_vertex_index++;
+                    
+                    triplet.vertArr = [triplet.a_pos, triplet.b_pos];
+                    
+                    createDebugSphere(triplet.a_pos, 0xff0000 );
+                    createDebugSphere(triplet.b_pos, 0xff0000 );
+                } else if (bc.cliff & ac.cliff) {
+                    triplet.a_pos = triplet.position.clone().setComponent(1, (a.centre.y+b.centre.y)/2 );
+                    triplet.b_pos = triplet.a_pos;
+                    triplet.c_pos = triplet.position.clone().setComponent(1, c.centre.y);
+                    
+                    triplet.a_pos.index = triplet_vertex_index++;
+                    triplet.c_pos.index = triplet_vertex_index++;
+                    
+                    triplet.vertArr = [triplet.a_pos, triplet.c_pos];
+                    
+                    createDebugSphere(triplet.a_pos, 0xff0000 );
+                    createDebugSphere(triplet.c_pos, 0xff0000 );
+                } else {
+                    triplet.a_pos = triplet.position;
+                    triplet.b_pos = triplet.position;
+                    triplet.c_pos = triplet.position;
+                    
+                    triplet.position.index = triplet_vertex_index++;
+                    triplet.vertArr = [triplet.position];
+                    
+                    createDebugSphere(triplet.position, 0xff0000 );
+                }
+                
+                return triplet;
+            }
+            
+            function generateEdges() {
+                for (var i = 0; i < latestID; i++) {
+                    edges.push([])
+                }
+                
+                for (hex of hexArray) {
+                    for (n of hex.neighbours) {
+                        getEdge(hex, n, generate=true);
+                    }
+                }
+            }
+            
+            function getEdge(a,b, generate = false) {
+                if (a.isHex)
+                    a = a.id;
+                if (b.isHex)
+                    b = b.id;
+                
                 if (a > b) {
                     a = b + (b=a, 0)
                 }
@@ -209,19 +342,81 @@
                 for (p of edges[a]) {
                     if (p.b == b) {
                         return p;
-                    } 
+                    }
+                }
+                if (generate) {
+                    var e = generateEdge(hexArray[a],hexArray[b]);
+                    edges[a].push(e)
+                    return e;
+                } else
+                    throw new Error("Edge " + [a,b] + " not found.")
+            }
+            
+            var edge_id = 0;
+            function generateEdge(a,b) {
+                var edge = {id:edge_id++, a:a.id, b:b.id, triplets:[]};
+                
+                for (d of a.neighboursData) {
+                    if (d.hex == b) {
+                        edge.cliff = d.cliff;
+                        break;
+                    }
+                }
+                
+                edgeArray.push(edge);
+                
+                return edge;
+            }
+            
+            var edge_vertex_index = 0;
+            function finishEdges() {
+                for (edge of edgeArray) {
+                    if (!hexArray[edge.a].active & !hexArray[edge.b].active) {
+                        continue;
+                    }
+                    edge.active = true;
+                    
+                    var a = hexArray[edge.a];
+                    var b = hexArray[edge.b];
+                    
+                    edge.position = edge.triplets[0].position.clone().add(edge.triplets[1].position).divideScalar(2);
+                    
+                    
+                    edge.vertices = {}
+                    edge.vertArr = [];
+                    if (edge.cliff) {
+                        edge.vertices[a.id] = edge.position.clone().setComponent(1, a.centre.y );
+                        edge.vertices[b.id] = edge.position.clone().setComponent(1, b.centre.y );
+                        
+                        edge.vertices[a.id].index = edge_vertex_index++;
+                        edge.vertices[b.id].index = edge_vertex_index++;
+                        
+                        edge.vertArr.push(edge.vertices[a.id], edge.vertices[b.id]);
+                        
+                        createDebugSphere(edge.vertices[a.id], 0x0000ff);
+                        createDebugSphere(edge.vertices[b.id], 0x0000ff);
+                    } else {
+                        edge.vertices[a.id] = edge.position;
+                        edge.vertices[b.id] = edge.position;
+                        
+                        edge.vertices[a.id].index = edge_vertex_index++;
+                        edge.vertArr.push(edge.position);
+                        
+                        createDebugSphere(edge.position, 0x0000ff);
+                    }
+                    
                 }
             }
             
             var latestID = 0;
-            function createHex(centre) {
+            function createHex(centre, active=true) {
                 if (latestID == 50) centre.y = 5
                 
                 var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
                 var mesh = new THREE.Mesh( debugGeometry, material );
                 mesh.position.copy(centre);
                 
-                var hex = {id: latestID++, centre: centre, neighbours: [], neighboursData: [], debugModel: mesh, isHex:true};
+                var hex = {id: latestID++, centre: centre, neighbours: [], neighboursData: [], debugModel: mesh, isHex:true, active: active};
                 hexArray.push(hex);
                 
                 //scene.add(mesh)
@@ -240,9 +435,16 @@
                 }
                 
                 var tri_offset = vertices.length;
-                
                 for (triplet of tripletArray) {
-                    vertices.push(triplet.position);
+                    vertices.push(...triplet.vertArr);
+                }
+                
+                var edge_offset = vertices.length;
+                for (edge of edgeArray) {
+                    if (!edge.active)
+                        continue;
+                    
+                    vertices.push(...edge.vertArr);
                 }
                 
                 // Convert to typed array of floats
@@ -254,17 +456,41 @@
                 // Create faces
                 var faceArray = [];
                 for (hex of hexArray) {
+                    if (!hex.active)
+                        continue;
+                    
                     var tri = [];
                     
                     for (var i  = 0; i < hex.neighbours.length; i++) {
                         var j = (i+1) % hex.neighbours.length;
-                        tri.push(getTriplet(hex, hex.neighbours[i], hex.neighbours[j]));
+                        triplet = getTriplet(hex, hex.neighbours[i], hex.neighbours[j])
+                        
+                        if (hex.id == triplet.a)
+                            tri.push(triplet.a_pos.index);
+                        else if (hex.id == triplet.b)
+                            tri.push(triplet.b_pos.index);
+                        else if (hex.id == triplet.c)
+                            tri.push(triplet.c_pos.index);
+                            
+                    }
+                    
+                    var edge = [];
+                    var ignoreEdge = [];
+                    
+                    for (n of hex.neighbours) {
+                        edge.push(getEdge(hex, n).vertices[hex.id].index);
+                        ignoreEdge.push(!getEdge(hex, n).cliff);
                     }
                     
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
                         
-                        faceArray.push(hex.id, tri_offset+tri[j].id, tri_offset+tri[i].id);
+                        if (ignoreEdge[j])
+                            faceArray.push(hex.id, tri_offset+tri[j], tri_offset+tri[i]);
+                        else {
+                            faceArray.push(hex.id, edge_offset+edge[j], tri_offset+tri[i]);
+                            faceArray.push(hex.id, tri_offset+tri[j], edge_offset+edge[j]);
+                        }
                     }
                 }
                 
@@ -285,7 +511,7 @@
                         cliff = true;
                     }
                     
-                    hex.neighboursData.push({cliff: cliff});
+                    hex.neighboursData.push({hex:neighbours ,cliff: cliff});
                 }
                 var comb_geom = createGeometry(hex);
                 
