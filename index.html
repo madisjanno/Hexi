@@ -177,7 +177,7 @@
                 var material = new THREE.MeshBasicMaterial( { color: color } );
                 var mesh = new THREE.Mesh( debugGeometry, material );
                 mesh.position.copy( position );
-                scene.add(mesh)
+                //scene.add(mesh)
                 return mesh;
             }
             
@@ -311,7 +311,7 @@
                     triplet.position.index = triplet_vertex_index++;
                     triplet.vertArr = [triplet.position];
                     
-                    createDebugSphere(triplet.position, 0xff0000 );
+                    createDebugSphere(triplet.position, 0xffff00 );
                 }
                 
                 return triplet;
@@ -402,7 +402,7 @@
                         edge.vertices[a.id].index = edge_vertex_index++;
                         edge.vertArr.push(edge.position);
                         
-                        createDebugSphere(edge.position, 0x0000ff);
+                        createDebugSphere(edge.position, 0x00ffff);
                     }
                     
                 }
@@ -460,10 +460,18 @@
                         continue;
                     
                     var tri = [];
+                    var o_tri = [];
+                    var opp_ids = [];
                     
                     for (var i  = 0; i < hex.neighbours.length; i++) {
                         var j = (i+1) % hex.neighbours.length;
-                        triplet = getTriplet(hex, hex.neighbours[i], hex.neighbours[j])
+                        triplet = getTriplet(hex, hex.neighbours[i], hex.neighbours[j]);
+                        var opp_id = hex.neighbours[i].id;
+                        opp_ids.push(opp_id);
+                        
+                        // IMPORTANT, DO NOT REMOVE
+                        if (!hex.neighboursData[i].cliff)
+                            opp_id = hex.neighbours[j].id;
                         
                         if (hex.id == triplet.a)
                             tri.push(triplet.a_pos.index);
@@ -471,26 +479,76 @@
                             tri.push(triplet.b_pos.index);
                         else if (hex.id == triplet.c)
                             tri.push(triplet.c_pos.index);
+                        
+                        if (opp_id == triplet.a)
+                            o_tri.push(triplet.a_pos.index);
+                        else if (opp_id == triplet.b)
+                            o_tri.push(triplet.b_pos.index);
+                        else if (opp_id == triplet.c)
+                            o_tri.push(triplet.c_pos.index);
                             
                     }
                     
+                    if (hex.id == 50)
+                        console.log(hex.id, opp_ids)
+                    
                     var edge = [];
-                    var ignoreEdge = [];
+                    var cliffs = [];
+                    var o_edge = [];
                     
                     for (n of hex.neighbours) {
-                        edge.push(getEdge(hex, n).vertices[hex.id].index);
-                        ignoreEdge.push(!getEdge(hex, n).cliff);
+                        var n_e = getEdge(hex, n);
+                        edge.push(n_e.vertices[hex.id].index);
+                        o_edge.push(n_e.vertices[n.id].index);
+                        cliffs.push(n_e.cliff);
                     }
                     
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
                         
-                        if (ignoreEdge[j])
-                            faceArray.push(hex.id, tri_offset+tri[j], tri_offset+tri[i]);
-                        else {
+                        if (cliffs[j]) {
                             faceArray.push(hex.id, edge_offset+edge[j], tri_offset+tri[i]);
                             faceArray.push(hex.id, tri_offset+tri[j], edge_offset+edge[j]);
+                        } else {
+                            faceArray.push(hex.id, tri_offset+tri[j], tri_offset+tri[i]);
                         }
+                    }
+                    
+                    var indices = [];
+                    var o_indices = [];
+                    for (var i = 0; i < tri.length; i++) {
+                        indices.push(edge_offset+edge[i], tri_offset+tri[i]);
+                        o_indices.push(edge_offset+o_edge[i], tri_offset+o_tri[i]);
+                    }
+                    
+                    if (hex.id == 50) {
+                        console.log(tri)
+                        console.log(o_tri)
+                    }
+                    
+                    for (var i = 0; i < indices.length; i++) {
+                        j = (i+1) % indices.length;
+                        
+                        var a = vertexArray[indices[i]*3+1];
+                        var b = vertexArray[o_indices[i]*3+1];
+                        var c = vertexArray[indices[j]*3+1];
+                        var d = vertexArray[o_indices[j]*3+1];
+                        
+                        if (a > b & c > d) {
+                            faceArray.push(indices[i], o_indices[j], o_indices[i]);
+                            faceArray.push(indices[i], indices[j], o_indices[j]);
+                        } else if (a > b & c == d) {
+                            faceArray.push(indices[i], o_indices[j], o_indices[i]);
+                        }  else if (a == b & c > d) {
+                            faceArray.push(indices[i], indices[j], o_indices[j]);
+                        } else if (a < b & c > d) {
+                            faceArray.push(indices[i], o_indices[j], o_indices[i]);
+                            faceArray.push(indices[i], o_indices[j], indices[j]);
+                        } else if (a > b & c < d) {
+                            faceArray.push(indices[i], o_indices[i], indices[i]);
+                            faceArray.push(o_indices[i], indices[j], o_indices[j]);
+                        }
+                        
                     }
                 }
                 
@@ -595,6 +653,8 @@
                                 cliff_vertices.push(edge_vertices[k].x, -drop, edge_vertices[k].z)
                                 cliff_vertices.push(edge_vertices[j].x, -drop, edge_vertices[j].z)
                             }
+                            
+                            
                         }
                     }
                     
