@@ -18,6 +18,13 @@
             
             // DEBUG
             var debugGeometry = new THREE.SphereGeometry( 0.1, 20, 20 );
+            var debugCategories = {
+                hexCentres: new THREE.Group(),
+                regularTriplets: new THREE.Group(),
+                cliffTriplets: new THREE.Group(),
+                regularEdges: new THREE.Group(),
+                cliffEdges: new THREE.Group()
+            }
             
             // STUFF
             var hexes = [];
@@ -148,6 +155,11 @@
                 directionalLight.position.set(10, 10, 10)
                 scene.add( directionalLight );
                 
+                for (cat in debugCategories) {
+                    scene.add(debugCategories[cat])
+                    debugCategories[cat].visible = !debugCategories[cat].visible;
+                }
+                
                 
                 renderer.domElement.addEventListener( 'mousedown', event => {
                     dragging = true;
@@ -170,14 +182,15 @@
                     }
                 }, false );
                 
+                createGUI();
 				draw();
 			}
             
-            function createDebugSphere(position, color) {
+            function createDebugSphere(position, color, category) {
                 var material = new THREE.MeshBasicMaterial( { color: color } );
                 var mesh = new THREE.Mesh( debugGeometry, material );
                 mesh.position.copy( position );
-                //scene.add(mesh)
+                debugCategories[category].add(mesh)
                 return mesh;
             }
             
@@ -264,9 +277,9 @@
                     
                     triplet.vertArr = [triplet.a_pos, triplet.b_pos, triplet.c_pos];
                     
-                    createDebugSphere(triplet.a_pos, 0xff0000 );
-                    createDebugSphere(triplet.b_pos, 0xff0000 );
-                    createDebugSphere(triplet.c_pos, 0xff0000 );
+                    createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets");
+                    createDebugSphere(triplet.b_pos, 0xff0000, "cliffTriplets" );
+                    createDebugSphere(triplet.c_pos, 0xff0000, "cliffTriplets" );
                 } else if (ab.cliff & bc.cliff) {
                     triplet.a_pos = triplet.position.clone().setComponent(1, (a.centre.y+c.centre.y)/2 );
                     triplet.b_pos = triplet.position.clone().setComponent(1, b.centre.y);
@@ -277,8 +290,8 @@
                     
                     triplet.vertArr = [triplet.a_pos, triplet.b_pos];
                     
-                    createDebugSphere(triplet.a_pos, 0xff0000 );
-                    createDebugSphere(triplet.b_pos, 0xff0000 );
+                    createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
+                    createDebugSphere(triplet.b_pos, 0xff0000, "cliffTriplets" );
                 } else if (ab.cliff & ac.cliff) {
                     triplet.a_pos = triplet.position.clone().setComponent(1, a.centre.y);
                     triplet.b_pos = triplet.position.clone().setComponent(1, (b.centre.y+c.centre.y)/2 );
@@ -289,8 +302,8 @@
                     
                     triplet.vertArr = [triplet.a_pos, triplet.b_pos];
                     
-                    createDebugSphere(triplet.a_pos, 0xff0000 );
-                    createDebugSphere(triplet.b_pos, 0xff0000 );
+                    createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
+                    createDebugSphere(triplet.b_pos, 0xff0000, "cliffTriplets" );
                 } else if (bc.cliff & ac.cliff) {
                     triplet.a_pos = triplet.position.clone().setComponent(1, (a.centre.y+b.centre.y)/2 );
                     triplet.b_pos = triplet.a_pos;
@@ -301,8 +314,8 @@
                     
                     triplet.vertArr = [triplet.a_pos, triplet.c_pos];
                     
-                    createDebugSphere(triplet.a_pos, 0xff0000 );
-                    createDebugSphere(triplet.c_pos, 0xff0000 );
+                    createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
+                    createDebugSphere(triplet.c_pos, 0xff0000, "cliffTriplets" );
                 } else {
                     triplet.a_pos = triplet.position;
                     triplet.b_pos = triplet.position;
@@ -311,7 +324,7 @@
                     triplet.position.index = triplet_vertex_index++;
                     triplet.vertArr = [triplet.position];
                     
-                    createDebugSphere(triplet.position, 0xffff00 );
+                    createDebugSphere(triplet.position, 0xffff00, "regularTriplets" );
                 }
                 
                 return triplet;
@@ -393,8 +406,8 @@
                         
                         edge.vertArr.push(edge.vertices[a.id], edge.vertices[b.id]);
                         
-                        createDebugSphere(edge.vertices[a.id], 0x0000ff);
-                        createDebugSphere(edge.vertices[b.id], 0x0000ff);
+                        createDebugSphere(edge.vertices[a.id], 0x0000ff, "cliffEdges");
+                        createDebugSphere(edge.vertices[b.id], 0x0000ff, "cliffEdges");
                     } else {
                         edge.vertices[a.id] = edge.position;
                         edge.vertices[b.id] = edge.position;
@@ -402,7 +415,7 @@
                         edge.vertices[a.id].index = edge_vertex_index++;
                         edge.vertArr.push(edge.position);
                         
-                        createDebugSphere(edge.position, 0x00ffff);
+                        createDebugSphere(edge.position, 0x00ffff, "regularEdges");
                     }
                     
                 }
@@ -412,14 +425,11 @@
             function createHex(centre, active=true) {
                 if (latestID == 50) centre.y = 5
                 
-                var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
-                var mesh = new THREE.Mesh( debugGeometry, material );
-                mesh.position.copy(centre);
+                var mesh = createDebugSphere(centre, 0xffffff, "hexCentres");
                 
                 var hex = {id: latestID++, centre: centre, neighbours: [], neighboursData: [], debugModel: mesh, isHex:true, active: active};
                 hexArray.push(hex);
                 
-                //scene.add(mesh)
                 
                 return hex;
             }
@@ -489,9 +499,6 @@
                             
                     }
                     
-                    if (hex.id == 50)
-                        console.log(hex.id, opp_ids)
-                    
                     var edge = [];
                     var cliffs = [];
                     var o_edge = [];
@@ -519,11 +526,6 @@
                     for (var i = 0; i < tri.length; i++) {
                         indices.push(edge_offset+edge[i], tri_offset+tri[i]);
                         o_indices.push(edge_offset+o_edge[i], tri_offset+o_tri[i]);
-                    }
-                    
-                    if (hex.id == 50) {
-                        console.log(tri)
-                        console.log(o_tri)
                     }
                     
                     for (var i = 0; i < indices.length; i++) {
@@ -575,6 +577,16 @@
             
             function createGUI() {
                 var gui = new dat.GUI();
+                
+                var funcs = {};
+                function wrap(cat) {
+                    return ()=>{debugCategories[cat].visible = !debugCategories[cat].visible}
+                }
+                
+                for (cat in debugCategories) {
+                    funcs[cat] = wrap(cat);
+                    gui.add(funcs, cat);
+                }
             }
  
 			var tick = 0
