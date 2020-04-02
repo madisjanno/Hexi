@@ -481,12 +481,6 @@
                     vertices.push(...edge.vertArr);
                 }
                 
-                // Convert to typed array of floats
-                for (vertex of vertices) {
-                    vertexArray.push(vertex.x, vertex.y, vertex.z);
-                }
-                vertexArray = new Float32Array(vertexArray);
-                
                 // Create faces
                 var faceArray = [];
                 for (hex of hexArray) {
@@ -507,20 +501,8 @@
                         if (!hex.neighboursData[i].cliff)
                             opp_id = hex.neighbours[j].id;
                         
-                        if (hex.id == triplet.a)
-                            tri.push(triplet.a_pos.index);
-                        else if (hex.id == triplet.b)
-                            tri.push(triplet.b_pos.index);
-                        else if (hex.id == triplet.c)
-                            tri.push(triplet.c_pos.index);
-                        
-                        if (opp_id == triplet.a)
-                            o_tri.push(triplet.a_pos.index);
-                        else if (opp_id == triplet.b)
-                            o_tri.push(triplet.b_pos.index);
-                        else if (opp_id == triplet.c)
-                            o_tri.push(triplet.c_pos.index);
-                            
+                        tri.push(triplet.vertices[hex.id].index);
+                        o_tri.push(triplet.vertices[opp_id].index);                            
                     }
                     
                     var edge = [];
@@ -533,6 +515,12 @@
                         o_edge.push(n_e.vertices[n.id].index);
                         cliffs.push(n_e.cliff);
                     }
+                    
+                    /*
+                    for (var i = 0; i < tri.length; i++) {
+                        
+                    }
+                    */
                     
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
@@ -555,10 +543,10 @@
                     for (var i = 0; i < indices.length; i++) {
                         j = (i+1) % indices.length;
                         
-                        var a = vertexArray[indices[i]*3+1];
-                        var b = vertexArray[o_indices[i]*3+1];
-                        var c = vertexArray[indices[j]*3+1];
-                        var d = vertexArray[o_indices[j]*3+1];
+                        var a = vertices[indices[i]].y;
+                        var b = vertices[o_indices[i]].y;
+                        var c = vertices[indices[j]].y;
+                        var d = vertices[o_indices[j]].y;
                         
                         if (a > b & c > d) {
                             faceArray.push(indices[i], o_indices[j], o_indices[i]);
@@ -580,6 +568,12 @@
                 
                 
                 geometry.setIndex( faceArray );
+                
+                // Convert to typed array of floats
+                for (vertex of vertices) {
+                    vertexArray.push(vertex.x, vertex.y, vertex.z);
+                }
+                vertexArray = new Float32Array(vertexArray);
                 
                 geometry.setAttribute( 'position', new THREE.BufferAttribute( vertexArray, 3 ) );
                 
