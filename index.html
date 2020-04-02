@@ -266,6 +266,8 @@
                 bc.triplets.push(triplet);
                 ac.triplets.push(triplet);
                 
+                var vertices = {}
+                
                 if (ab.cliff & bc.cliff & ac.cliff) {
                     triplet.a_pos = triplet.position.clone().setComponent(1, a.centre.y);
                     triplet.b_pos = triplet.position.clone().setComponent(1, b.centre.y);
@@ -274,6 +276,10 @@
                     triplet.a_pos.index = triplet_vertex_index++;
                     triplet.b_pos.index = triplet_vertex_index++;
                     triplet.c_pos.index = triplet_vertex_index++;
+                    
+                    vertices[a.id] = triplet.a_pos;
+                    vertices[b.id] = triplet.b_pos;
+                    vertices[c.id] = triplet.c_pos;
                     
                     triplet.vertArr = [triplet.a_pos, triplet.b_pos, triplet.c_pos];
                     
@@ -288,6 +294,10 @@
                     triplet.a_pos.index = triplet_vertex_index++;
                     triplet.b_pos.index = triplet_vertex_index++;
                     
+                    vertices[a.id] = triplet.a_pos;
+                    vertices[b.id] = triplet.b_pos;
+                    vertices[c.id] = triplet.c_pos;
+                    
                     triplet.vertArr = [triplet.a_pos, triplet.b_pos];
                     
                     createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
@@ -299,6 +309,10 @@
                     
                     triplet.a_pos.index = triplet_vertex_index++;
                     triplet.b_pos.index = triplet_vertex_index++;
+                    
+                    vertices[a.id] = triplet.a_pos;
+                    vertices[b.id] = triplet.b_pos;
+                    vertices[c.id] = triplet.c_pos;
                     
                     triplet.vertArr = [triplet.a_pos, triplet.b_pos];
                     
@@ -312,6 +326,10 @@
                     triplet.a_pos.index = triplet_vertex_index++;
                     triplet.c_pos.index = triplet_vertex_index++;
                     
+                    vertices[a.id] = triplet.a_pos;
+                    vertices[b.id] = triplet.b_pos;
+                    vertices[c.id] = triplet.c_pos;
+                    
                     triplet.vertArr = [triplet.a_pos, triplet.c_pos];
                     
                     createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
@@ -322,10 +340,17 @@
                     triplet.c_pos = triplet.position;
                     
                     triplet.position.index = triplet_vertex_index++;
+                    
+                    vertices[a.id] = triplet.a_pos;
+                    vertices[b.id] = triplet.b_pos;
+                    vertices[c.id] = triplet.c_pos;
+                    
                     triplet.vertArr = [triplet.position];
                     
                     createDebugSphere(triplet.position, 0xffff00, "regularTriplets" );
                 }
+                
+                triplet.vertices = vertices;
                 
                 return triplet;
             }
@@ -392,8 +417,7 @@
                     var a = hexArray[edge.a];
                     var b = hexArray[edge.b];
                     
-                    edge.position = edge.triplets[0].position.clone().add(edge.triplets[1].position).divideScalar(2);
-                    
+                    edge.position = edge.triplets[0].vertices[a.id].clone().add(edge.triplets[1].vertices[a.id]).divideScalar(2);
                     
                     edge.vertices = {}
                     edge.vertArr = [];
@@ -513,7 +537,7 @@
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
                         
-                        if (cliffs[j]) {
+                        if (cliffs[j] | true) {
                             faceArray.push(hex.id, edge_offset+edge[j], tri_offset+tri[i]);
                             faceArray.push(hex.id, tri_offset+tri[j], edge_offset+edge[j]);
                         } else {
