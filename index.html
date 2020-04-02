@@ -437,6 +437,10 @@
                     if (edge.cliff) {
                         edge.vertices[a.id] = edge.position.clone().setComponent(1, a.centre.y );
                         edge.vertices[b.id] = edge.position.clone().setComponent(1, b.centre.y );
+                        
+                        edge.vertices[a.id].y = (edge.vertices[a.id].y*5 + edge.vertices[b.id].y)/6;
+                        edge.vertices[b.id].y = (edge.vertices[b.id].y*5 + edge.vertices[a.id].y)/6;
+                        
                         edge.mid = edge.position.clone().setComponent(1, (a.centre.y+b.centre.y)/2 );
                         
                         edge.vertices[a.id].index = edge_vertex_index++;
@@ -539,7 +543,7 @@
                     
                     
                     // Generate extra internal vertices
-                    var internal_offset = vertices.length;
+                    var internal_edge_offset = vertices.length;
                     
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
@@ -548,6 +552,12 @@
                         vertices.push( hex.centre.clone().add(vertices[edge_offset+edge[i]]).add(vertices[edge_offset+edge[i]]).divideScalar(3) );
                     }
                     
+                    var internal_tri_offset = vertices.length;
+                    
+                    for (var i = 0; i < tri.length; i++) {
+                        var j = (i+1) % tri.length;
+                        vertices.push( hex.centre.clone().add(vertices[tri_offset+tri[i]]).add(vertices[tri_offset+tri[i]]).divideScalar(3) );
+                    }
                     
                     // Add hex faces
                     for (var i = 0; i < tri.length; i++) {
@@ -570,14 +580,21 @@
                         */
                         
                         /* VER C */
+                        /*
+                        faceArray.push(hex.id, internal_edge_offset+j, internal_edge_offset+i);
+                        faceArray.push(internal_edge_offset+i, internal_edge_offset+j, tri_offset+tri[i]);
+                        faceArray.push(internal_edge_offset+j, edge_offset+edge[j], tri_offset+tri[i]);
+                        faceArray.push(internal_edge_offset+i, tri_offset+tri[i], edge_offset+edge[i]);
+                        */
                         
-                        faceArray.push(hex.id, internal_offset+j, internal_offset+i);
-                        faceArray.push(internal_offset+i, internal_offset+j, tri_offset+tri[i]);
-                        faceArray.push(internal_offset+j, edge_offset+edge[j], tri_offset+tri[i]);
-                        faceArray.push(internal_offset+i, tri_offset+tri[i], edge_offset+edge[i]);
+                        faceArray.push(hex.id, internal_tri_offset+i, internal_edge_offset+i);
+                        faceArray.push(hex.id, internal_edge_offset+j, internal_tri_offset+i);
                         
-                        //faceArray.push(hex.id, edge_offset+edge[j], tri_offset+tri[i]);
-                        //faceArray.push(hex.id, tri_offset+tri[j], edge_offset+edge[j]);
+                        faceArray.push(internal_edge_offset+j, tri_offset+tri[i], internal_tri_offset+i);
+                        faceArray.push(internal_edge_offset+j, edge_offset+edge[j], tri_offset+tri[i]);
+                        faceArray.push(internal_tri_offset+i, tri_offset+tri[i], edge_offset+edge[i]);
+                        faceArray.push(internal_tri_offset+i, edge_offset+edge[i], internal_edge_offset+i);
+                        
                     }
                     
                     // Collect indices and opposing indices of perimeter
