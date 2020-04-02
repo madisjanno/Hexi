@@ -526,7 +526,7 @@
                         var j = (i+1) % tri.length;
                         //vertices.push( hex.centre.clone().add(vertices[tri_offset+tri[i]]).divideScalar(2) ); //VER A
                         //vertices.push( hex.centre.clone().add(vertices[tri_offset+tri[i]]).add(vertices[tri_offset+tri[j]]).divideScalar(3) ); //VER B
-                        vertices.push( hex.centre.clone().add(vertices[edge_offset+edge[i]]).divideScalar(2) );
+                        vertices.push( hex.centre.clone().add(vertices[edge_offset+edge[i]]).add(vertices[edge_offset+edge[i]]).divideScalar(3) );
                     }
                     
                     
