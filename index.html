@@ -489,17 +489,15 @@
                     
                     var tri = [];
                     var o_tri = [];
-                    var opp_ids = [];
                     
                     // Collect surrounding triplets and triplets touching those triplets
                     for (var i  = 0; i < hex.neighbours.length; i++) {
                         var j = (i+1) % hex.neighbours.length;
                         triplet = getTriplet(hex, hex.neighbours[i], hex.neighbours[j]);
                         var opp_id = hex.neighbours[i].id;
-                        opp_ids.push(opp_id);
                         
                         // IMPORTANT, DO NOT REMOVE
-                        if (!hex.neighboursData[i].cliff)
+                        if (triplet.vertices[opp_id].y > triplet.vertices[hex.neighbours[j].id].y)
                             opp_id = hex.neighbours[j].id;
                         
                         tri.push(triplet.vertices[hex.id].index);
