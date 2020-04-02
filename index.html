@@ -291,53 +291,66 @@
                     triplet.b_pos = triplet.position.clone().setComponent(1, b.centre.y);
                     triplet.c_pos = triplet.a_pos;
                     
+                    triplet.mid = triplet.a_pos.clone().add(triplet.b_pos).divideScalar(2);
+                    
                     triplet.a_pos.index = triplet_vertex_index++;
                     triplet.b_pos.index = triplet_vertex_index++;
+                    triplet.mid.index = triplet_vertex_index++;
                     
                     vertices[a.id] = triplet.a_pos;
                     vertices[b.id] = triplet.b_pos;
                     vertices[c.id] = triplet.c_pos;
                     
-                    triplet.vertArr = [triplet.a_pos, triplet.b_pos];
+                    triplet.vertArr = [triplet.a_pos, triplet.b_pos, triplet.mid];
                     
                     createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
                     createDebugSphere(triplet.b_pos, 0xff0000, "cliffTriplets" );
+                    createDebugSphere(triplet.mid, 0xff0000, "cliffTriplets" );
                 } else if (ab.cliff & ac.cliff) {
                     triplet.a_pos = triplet.position.clone().setComponent(1, a.centre.y);
                     triplet.b_pos = triplet.position.clone().setComponent(1, (b.centre.y+c.centre.y)/2 );
                     triplet.c_pos = triplet.b_pos;
                     
+                    triplet.mid = triplet.a_pos.clone().add(triplet.b_pos).divideScalar(2);
+                    
                     triplet.a_pos.index = triplet_vertex_index++;
                     triplet.b_pos.index = triplet_vertex_index++;
+                    triplet.mid.index = triplet_vertex_index++;
                     
                     vertices[a.id] = triplet.a_pos;
                     vertices[b.id] = triplet.b_pos;
                     vertices[c.id] = triplet.c_pos;
                     
-                    triplet.vertArr = [triplet.a_pos, triplet.b_pos];
+                    triplet.vertArr = [triplet.a_pos, triplet.b_pos, triplet.mid];
                     
                     createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
                     createDebugSphere(triplet.b_pos, 0xff0000, "cliffTriplets" );
+                    createDebugSphere(triplet.mid, 0xff0000, "cliffTriplets" );
                 } else if (bc.cliff & ac.cliff) {
                     triplet.a_pos = triplet.position.clone().setComponent(1, (a.centre.y+b.centre.y)/2 );
                     triplet.b_pos = triplet.a_pos;
                     triplet.c_pos = triplet.position.clone().setComponent(1, c.centre.y);
                     
+                    triplet.mid = triplet.a_pos.clone().add(triplet.c_pos).divideScalar(2);
+                    
                     triplet.a_pos.index = triplet_vertex_index++;
                     triplet.c_pos.index = triplet_vertex_index++;
+                    triplet.mid.index = triplet_vertex_index++;
                     
                     vertices[a.id] = triplet.a_pos;
                     vertices[b.id] = triplet.b_pos;
                     vertices[c.id] = triplet.c_pos;
                     
-                    triplet.vertArr = [triplet.a_pos, triplet.c_pos];
+                    triplet.vertArr = [triplet.a_pos, triplet.c_pos, triplet.mid];
                     
                     createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
                     createDebugSphere(triplet.c_pos, 0xff0000, "cliffTriplets" );
+                    createDebugSphere(triplet.mid, 0xff0000, "cliffTriplets" );
                 } else {
                     triplet.a_pos = triplet.position;
                     triplet.b_pos = triplet.position;
                     triplet.c_pos = triplet.position;
+                    triplet.mid = triplet.position;
                     
                     triplet.position.index = triplet_vertex_index++;
                     
@@ -424,17 +437,21 @@
                     if (edge.cliff) {
                         edge.vertices[a.id] = edge.position.clone().setComponent(1, a.centre.y );
                         edge.vertices[b.id] = edge.position.clone().setComponent(1, b.centre.y );
+                        edge.mid = edge.position.clone().setComponent(1, (a.centre.y+b.centre.y)/2 );
                         
                         edge.vertices[a.id].index = edge_vertex_index++;
                         edge.vertices[b.id].index = edge_vertex_index++;
+                        edge.mid.index = edge_vertex_index++;
                         
-                        edge.vertArr.push(edge.vertices[a.id], edge.vertices[b.id]);
+                        edge.vertArr.push(edge.vertices[a.id], edge.vertices[b.id], edge.mid);
                         
                         createDebugSphere(edge.vertices[a.id], 0x0000ff, "cliffEdges");
                         createDebugSphere(edge.vertices[b.id], 0x0000ff, "cliffEdges");
+                        createDebugSphere(edge.mid, 0x0000ff, "cliffEdges");
                     } else {
                         edge.vertices[a.id] = edge.position;
                         edge.vertices[b.id] = edge.position;
+                        edge.mid = edge.position;
                         
                         edge.vertices[a.id].index = edge_vertex_index++;
                         edge.vertArr.push(edge.position);
@@ -489,6 +506,7 @@
                     
                     var tri = [];
                     var o_tri = [];
+                    var tri_mid = [];
                     
                     // Collect surrounding triplets and triplets touching those triplets
                     for (var i  = 0; i < hex.neighbours.length; i++) {
@@ -501,12 +519,14 @@
                             opp_id = hex.neighbours[j].id;
                         
                         tri.push(triplet.vertices[hex.id].index);
-                        o_tri.push(triplet.vertices[opp_id].index);                            
+                        o_tri.push(triplet.vertices[opp_id].index);
+                        tri_mid.push(triplet.mid.index);
                     }
                     
                     var edge = [];
                     var cliffs = [];
                     var o_edge = [];
+                    var edge_mid = [];
                     
                     // Collect sourrounding edges and note if they are cliffs
                     for (n of hex.neighbours) {
@@ -514,6 +534,7 @@
                         edge.push(n_e.vertices[hex.id].index);
                         o_edge.push(n_e.vertices[n.id].index);
                         cliffs.push(n_e.cliff);
+                        edge_mid.push(n_e.mid.index);
                     }
                     
                     
@@ -562,9 +583,11 @@
                     // Collect indices and opposing indices of perimeter
                     var indices = [];
                     var o_indices = [];
+                    var mid_indices = [];
                     for (var i = 0; i < tri.length; i++) {
                         indices.push(edge_offset+edge[i], tri_offset+tri[i]);
                         o_indices.push(edge_offset+o_edge[i], tri_offset+o_tri[i]);
+                        mid_indices.push(edge_offset+edge_mid[i], tri_offset+tri_mid[i]);
                     }
                     
                     // Create cliff faces as neccessary
@@ -572,7 +595,6 @@
                     // c - a     - associated with hex
                     // |   |
                     // d - b     - associated with opposing hex
-                    
                     for (var i = 0; i < indices.length; i++) {
                         j = (i+1) % indices.length;
                         
@@ -582,18 +604,22 @@
                         var d = vertices[o_indices[j]].y;
                         
                         if (a > b & c > d) {
-                            faceArray.push(indices[i], o_indices[j], o_indices[i]);
-                            faceArray.push(indices[i], indices[j], o_indices[j]);
+                            faceArray.push(indices[i], mid_indices[j], mid_indices[i]);
+                            faceArray.push(indices[i], indices[j], mid_indices[j]);
+                            faceArray.push(mid_indices[i], o_indices[j], o_indices[i]);
+                            faceArray.push(mid_indices[i], mid_indices[j], o_indices[j]);
                         } else if (a > b & c == d) {
-                            faceArray.push(indices[i], o_indices[j], o_indices[i]);
+                            faceArray.push(indices[j], mid_indices[i], indices[i]);
+                            faceArray.push(indices[j], o_indices[i], mid_indices[i]);
                         }  else if (a == b & c > d) {
-                            faceArray.push(indices[i], indices[j], o_indices[j]);
+                            faceArray.push(indices[i], indices[j], mid_indices[j]);
+                            faceArray.push(indices[i], mid_indices[j], o_indices[j]);
                         } else if (a < b & c > d) {
-                            faceArray.push(indices[i], o_indices[j], o_indices[i]);
-                            faceArray.push(indices[i], o_indices[j], indices[j]);
+                            faceArray.push(indices[i], mid_indices[j], o_indices[j]);
+                            faceArray.push(indices[i], indices[j], mid_indices[j]);
                         } else if (a > b & c < d) {
-                            faceArray.push(indices[i], o_indices[i], indices[i]);
-                            faceArray.push(o_indices[i], indices[j], o_indices[j]);
+                            faceArray.push(indices[j], mid_indices[i], indices[i]);
+                            faceArray.push(indices[j], o_indices[i], mid_indices[i]);
                         }
                         
                     }
