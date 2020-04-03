@@ -551,7 +551,7 @@
                         //vertices.push( hex.centre.clone().add(vertices[tri_offset+tri[i]]).add(vertices[tri_offset+tri[j]]).divideScalar(3) ); //VER B
                         //vertices.push( hex.centre.clone().add(vertices[edge_offset+edge[i]]).add(vertices[edge_offset+edge[i]]).divideScalar(3) );
                         
-                        var dir = hex.centre.clone().sub(vertices[edge_offset+edge[i]]).normalize().multiplyScalar(-0.1);
+                        var dir = hex.centre.clone().sub(vertices[edge_offset+edge[i]]).normalize().multiplyScalar(-0.2);
                         //vertices.push(vertices[edge_offset+edge[i]].clone().add(dir));
                         vertices.push(hex.centre.clone().add(dir));
                     }
@@ -561,7 +561,7 @@
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
                         //vertices.push( hex.centre.clone().add(vertices[tri_offset+tri[i]]).add(vertices[tri_offset+tri[i]]).divideScalar(3) );
-                        var dir = hex.centre.clone().sub(vertices[tri_offset+tri[i]]).normalize().multiplyScalar(-0.1);
+                        var dir = hex.centre.clone().sub(vertices[tri_offset+tri[i]]).normalize().multiplyScalar(-0.2);
                         //vertices.push(vertices[tri_offset+tri[i]].clone().add(dir));
                         vertices.push(hex.centre.clone().add(dir));
                     }
