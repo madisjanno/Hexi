@@ -12,6 +12,12 @@
 			var lookAt = new THREE.Vector3(0.0, 0.0, 0.0);
 			var viewerPosition = new THREE.Vector3(10.0, 10.0, 20.0);
             
+            // SHADERS AND TEXTURES
+            var vertexShader, fragmentShader;
+            var textureY = new THREE.TextureLoader().load( 'Moss.jpeg' );
+            var textureX = new THREE.TextureLoader().load( 'Brick.jpg' );
+            var textureZ = new THREE.TextureLoader().load( 'Brick.jpg' );
+            
             // STATS
             var stats = new Stats();
             stats.showPanel( 0 );
@@ -58,6 +64,16 @@
 				camera.position.set(viewerPosition.x, viewerPosition.y, viewerPosition.z);
 				camera.up = new THREE.Vector3(0, 1, 0);
 				camera.lookAt(lookAt);
+                
+                vertexShader = document.getElementById('vertexShader').textContent;
+				fragmentShader = document.getElementById('fragmentShader').textContent;
+                
+                textureY.wrapS = THREE.RepeatWrapping;
+                textureY.wrapT = THREE.RepeatWrapping;
+                textureZ.wrapS = THREE.RepeatWrapping;
+                textureZ.wrapT = THREE.RepeatWrapping;
+                textureX.wrapS = THREE.RepeatWrapping;
+                textureX.wrapT = THREE.RepeatWrapping;
                 
                 scene = new THREE.Scene();
                 
@@ -147,13 +163,37 @@
                 var terrainGeom = createTerrainGeometry();
                 terrainGeom.computeVertexNormals();
                 
-                var material = new THREE.MeshPhongMaterial( {color: 0xffffff, flatShading:false} );
+                var directionalLight = new THREE.DirectionalLight( 0xffffff, 1 );
+                directionalLight.position.set(10.11, 10, 10)
+                scene.add( directionalLight );
+                
+                var uniforms = {
+                    lightPosition: new THREE.Uniform(directionalLight.position),
+                    color: new THREE.Uniform(new THREE.Vector3(1.0,1.0,1.0)),
+                    texY: new THREE.Uniform(textureY),
+                    texX: new THREE.Uniform(textureX),
+                    texZ: new THREE.Uniform(textureZ),
+                }
+                
+                uniforms = THREE.UniformsUtils.merge( [
+                    uniforms,
+                    THREE.UniformsLib[ "lights" ]
+                ] );
+                
+                uniforms.texY.value.needsUpdate = true;
+                uniforms.texX.value.needsUpdate = true;
+                uniforms.texZ.value.needsUpdate = true;
+                
+                var material = new THREE.ShaderMaterial( {
+                    color: 0xffffff,
+                    vertexShader: vertexShader,
+                    fragmentShader: fragmentShader,
+                    uniforms: uniforms,
+                    lights:true
+                } );
                 var mesh = new THREE.Mesh( terrainGeom, material );
                 scene.add(mesh);
                 
-                var directionalLight = new THREE.DirectionalLight( 0xffffff, 1 );
-                directionalLight.position.set(10, 10, 10)
-                scene.add( directionalLight );
                 
                 for (cat in debugCategories) {
                     scene.add(debugCategories[cat])
@@ -551,7 +591,7 @@
                         //vertices.push( hex.centre.clone().add(vertices[tri_offset+tri[i]]).add(vertices[tri_offset+tri[j]]).divideScalar(3) ); //VER B
                         //vertices.push( hex.centre.clone().add(vertices[edge_offset+edge[i]]).add(vertices[edge_offset+edge[i]]).divideScalar(3) );
                         
-                        var dir = hex.centre.clone().sub(vertices[edge_offset+edge[i]]).normalize().multiplyScalar(-0.2);
+                        var dir = hex.centre.clone().sub(vertices[edge_offset+edge[i]]).normalize().multiplyScalar(-0.5);
                         //vertices.push(vertices[edge_offset+edge[i]].clone().add(dir));
                         vertices.push(hex.centre.clone().add(dir));
                     }
@@ -561,7 +601,7 @@
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
                         //vertices.push( hex.centre.clone().add(vertices[tri_offset+tri[i]]).add(vertices[tri_offset+tri[i]]).divideScalar(3) );
-                        var dir = hex.centre.clone().sub(vertices[tri_offset+tri[i]]).normalize().multiplyScalar(-0.2);
+                        var dir = hex.centre.clone().sub(vertices[tri_offset+tri[i]]).normalize().multiplyScalar(-0.5);
                         //vertices.push(vertices[tri_offset+tri[i]].clone().add(dir));
                         vertices.push(hex.centre.clone().add(dir));
                     }
@@ -706,6 +746,92 @@
                 stats.end();
 			}
 
+		</script>
+        <script id="vertexShader" type="x-shader/x-vertex">
+			varying vec3 interpolatedPosition; //We interpolate the position
+			varying vec3 interpolatedNormal;   //We interpolate the normal
+            varying vec3 globalNormal;
+            varying vec3 globalPosition;
+			
+			void main() {
+				interpolatedPosition = (modelViewMatrix * vec4(position,1.0)).xyz;
+				interpolatedNormal = normalize(normalMatrix * normal);
+                globalNormal = normal;
+                globalPosition = (modelMatrix * vec4(position,1.0)).xyz;
+				
+				gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+			}
+		</script>
+        <script id="fragmentShader" type="x-shader/x-fragment">
+            #if NUM_DIR_LIGHTS > 0
+                struct DirectionalLight {
+                    vec3 direction;
+                    vec3 color;
+                    int shadow;
+                    float shadowBias;
+                    float shadowRadius;
+                    vec2 shadowMapSize;
+                 };
+                 uniform DirectionalLight directionalLights[ NUM_DIR_LIGHTS ];
+            #endif
+        
+			uniform vec3 lightPosition;
+			uniform vec3 color;
+            uniform sampler2D texY;
+            uniform sampler2D texX;
+            uniform sampler2D texZ;
+            
+			varying vec3 interpolatedPosition;
+			varying vec3 interpolatedNormal;
+            
+            varying vec3 globalNormal;
+            varying vec3 globalPosition;
+			
+			void main() {
+                vec3 camPos = interpolatedPosition;
+                
+                vec3 n = normalize(interpolatedNormal);
+                
+                vec3 viewerDir = normalize(-camPos);
+                
+                vec3 l = directionalLights[0].direction;
+                
+                vec3 reflection = reflect(-l, n);
+                
+                vec3 absNormal = abs(globalNormal);
+                vec3 textureWeights = absNormal/(absNormal.x+absNormal.y+absNormal.z);
+                
+                vec3 texColor = vec3(0.0);
+                texColor += texture2D(texY, globalPosition.xz/5.0).xyz*textureWeights.y;
+                texColor += texture2D(texX, globalPosition.zy/2.0).xyz*textureWeights.x;
+                texColor += texture2D(texZ, globalPosition.xy/2.0).xyz*textureWeights.z;
+                
+                vec3 meanX = texture2D(texX, vec2(0.0), 1.0).xyz;
+                vec3 meanY = texture2D(texY, vec2(0.0), 1.0).xyz;
+                vec3 meanZ = texture2D(texZ, vec2(0.0), 1.0).xyz;
+                
+                vec3 mean = vec3(0.0);
+                mean += meanY*textureWeights.y;
+                mean += meanX*textureWeights.x;
+                mean += meanZ*textureWeights.z;
+                
+                vec3 correctedColor = vec3(0.0);
+                correctedColor += (texture2D(texY, globalPosition.xz/5.0).xyz - meanY) * sqrt(textureWeights.y);
+                correctedColor += (texture2D(texX, globalPosition.zy/2.0).xyz - meanX) * sqrt(textureWeights.x);
+                correctedColor += (texture2D(texZ, globalPosition.xy/2.0).xyz - meanZ) * sqrt(textureWeights.z);
+                
+                float sqweightsum = textureWeights.x*textureWeights.x+textureWeights.y*textureWeights.y+textureWeights.z*textureWeights.z;
+                
+                texColor = (texColor-mean)/sqrt(sqweightsum) + mean;
+                
+                //texColor = correctedColor+mean;
+            
+                gl_FragColor = vec4( texColor*0.1 + max(dot(n,l), 0.0)*texColor + pow(max(dot(viewerDir, reflection), 0.0), 2000.0), 1.0);
+                
+                //gl_FragColor.rgb = correctedColor+mean;
+                //gl_FragColor.rgb = texColor;
+                //gl_FragColor.rgb = vec3(textureWeights.x*textureWeights.x+textureWeights.y*textureWeights.y+textureWeights.z*textureWeights.z);
+			}
 		</script>
 
 	</head>
