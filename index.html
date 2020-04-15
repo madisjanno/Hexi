@@ -490,8 +490,8 @@
                         edge.vertices[a.id] = edge.position.clone().setComponent(1, a.centre.y );
                         edge.vertices[b.id] = edge.position.clone().setComponent(1, b.centre.y );
                         
-                        edge.vertices[a.id].y = (edge.vertices[a.id].y*5 + edge.vertices[b.id].y)/6;
-                        edge.vertices[b.id].y = (edge.vertices[b.id].y*5 + edge.vertices[a.id].y)/6;
+                        //edge.vertices[a.id].y = (edge.vertices[a.id].y*5 + edge.vertices[b.id].y)/6;
+                        //edge.vertices[b.id].y = (edge.vertices[b.id].y*5 + edge.vertices[a.id].y)/6;
                         
                         edge.mid = edge.position.clone().setComponent(1, (a.centre.y+b.centre.y)/2 );
                         
@@ -851,8 +851,8 @@
                 hex.neighbours = neighbours;
                 for (neighbours of neighbours) {
                     cliff = false;
-                    
-                    if ( (hex.id + neighbours.id) % 5 == 1) {
+
+                    if (Math.abs(hex.centre.y-neighbours.centre.y) > 1.0) {
                         cliff = true;
                     }
                     
