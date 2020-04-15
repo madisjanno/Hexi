@@ -317,11 +317,23 @@
                     triplet.b_pos.index = triplet_vertex_index++;
                     triplet.c_pos.index = triplet_vertex_index++;
                     
+                    var upper = Math.max(a.centre.y+b.centre.y, b.centre.y+c.centre.y, a.centre.y+c.centre.y)/2;
+                    var lower = Math.min(a.centre.y+b.centre.y, b.centre.y+c.centre.y, a.centre.y+c.centre.y)/2;
+                    
+                    triplet.upper_mid = triplet.position.clone().setComponent(1, upper);
+                    triplet.lower_mid = triplet.position.clone().setComponent(1, lower);
+                    
+                    triplet.upper_mid.index = triplet_vertex_index++;
+                    triplet.lower_mid.index = triplet_vertex_index++;
+                    triplet.mid = triplet.lower_mid;
+                    
                     vertices[a.id] = triplet.a_pos;
                     vertices[b.id] = triplet.b_pos;
                     vertices[c.id] = triplet.c_pos;
                     
-                    triplet.vertArr = [triplet.a_pos, triplet.b_pos, triplet.c_pos];
+                    triplet.triple_cliff = true;
+                    
+                    triplet.vertArr = [triplet.a_pos, triplet.b_pos, triplet.c_pos, triplet.upper_mid, triplet.lower_mid];
                     
                     createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets");
                     createDebugSphere(triplet.b_pos, 0xff0000, "cliffTriplets" );
@@ -549,10 +561,8 @@
                         continue;
                     
                     var tri = [];
-                    var o_tri = [];
-                    var tri_mid = [];
                     
-                    // Collect surrounding triplets and triplets touching those triplets
+                    // Collect surrounding triplets
                     for (var i  = 0; i < hex.neighbours.length; i++) {
                         var j = (i+1) % hex.neighbours.length;
                         triplet = getTriplet(hex, hex.neighbours[i], hex.neighbours[j]);
@@ -563,22 +573,14 @@
                             opp_id = hex.neighbours[j].id;
                         
                         tri.push(triplet.vertices[hex.id].index);
-                        o_tri.push(triplet.vertices[opp_id].index);
-                        tri_mid.push(triplet.mid.index);
                     }
                     
                     var edge = [];
-                    var cliffs = [];
-                    var o_edge = [];
-                    var edge_mid = [];
                     
-                    // Collect sourrounding edges and note if they are cliffs
+                    // Collect surrounding edges
                     for (n of hex.neighbours) {
                         var n_e = getEdge(hex, n);
                         edge.push(n_e.vertices[hex.id].index);
-                        o_edge.push(n_e.vertices[n.id].index);
-                        cliffs.push(n_e.cliff);
-                        edge_mid.push(n_e.mid.index);
                     }
                     
                     
@@ -587,12 +589,8 @@
                     
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
-                        //vertices.push( hex.centre.clone().add(vertices[tri_offset+tri[i]]).divideScalar(2) ); //VER A
-                        //vertices.push( hex.centre.clone().add(vertices[tri_offset+tri[i]]).add(vertices[tri_offset+tri[j]]).divideScalar(3) ); //VER B
-                        //vertices.push( hex.centre.clone().add(vertices[edge_offset+edge[i]]).add(vertices[edge_offset+edge[i]]).divideScalar(3) );
                         
                         var dir = hex.centre.clone().sub(vertices[edge_offset+edge[i]]).normalize().multiplyScalar(-0.5);
-                        //vertices.push(vertices[edge_offset+edge[i]].clone().add(dir));
                         vertices.push(hex.centre.clone().add(dir));
                     }
                     
@@ -600,39 +598,13 @@
                     
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
-                        //vertices.push( hex.centre.clone().add(vertices[tri_offset+tri[i]]).add(vertices[tri_offset+tri[i]]).divideScalar(3) );
                         var dir = hex.centre.clone().sub(vertices[tri_offset+tri[i]]).normalize().multiplyScalar(-0.5);
-                        //vertices.push(vertices[tri_offset+tri[i]].clone().add(dir));
                         vertices.push(hex.centre.clone().add(dir));
                     }
                     
                     // Add hex faces
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
-                        
-                        /* VER A */
-                        /*
-                        faceArray.push(hex.id, internal_offset+j, internal_offset+i);
-                        faceArray.push(edge_offset+edge[j], internal_offset+i, internal_offset+j);
-                        faceArray.push(tri_offset+tri[i], internal_offset+i, edge_offset+edge[j]);
-                        faceArray.push(edge_offset+edge[j], internal_offset+j, tri_offset+tri[j]);
-                        */
-                        
-                        /* VER B */
-                        /*
-                        faceArray.push(hex.id, internal_offset+j, internal_offset+i);
-                        faceArray.push(internal_offset+i, internal_offset+j, tri_offset+tri[j]);
-                        faceArray.push(internal_offset+i, tri_offset+tri[j], edge_offset+edge[j]);
-                        faceArray.push(internal_offset+i, edge_offset+edge[j], tri_offset+tri[i]);
-                        */
-                        
-                        /* VER C */
-                        /*
-                        faceArray.push(hex.id, internal_edge_offset+j, internal_edge_offset+i);
-                        faceArray.push(internal_edge_offset+i, internal_edge_offset+j, tri_offset+tri[i]);
-                        faceArray.push(internal_edge_offset+j, edge_offset+edge[j], tri_offset+tri[i]);
-                        faceArray.push(internal_edge_offset+i, tri_offset+tri[i], edge_offset+edge[i]);
-                        */
                         
                         faceArray.push(hex.id, internal_tri_offset+i, internal_edge_offset+i);
                         faceArray.push(hex.id, internal_edge_offset+j, internal_tri_offset+i);
@@ -643,17 +615,7 @@
                         faceArray.push(internal_tri_offset+i, edge_offset+edge[i], internal_edge_offset+i);
                         
                     }
-                    
-                    // Collect indices and opposing indices of perimeter
-                    var indices = [];
-                    var o_indices = [];
-                    var mid_indices = [];
-                    for (var i = 0; i < tri.length; i++) {
-                        indices.push(edge_offset+edge[i], tri_offset+tri[i]);
-                        o_indices.push(edge_offset+o_edge[i], tri_offset+o_tri[i]);
-                        mid_indices.push(edge_offset+edge_mid[i], tri_offset+tri_mid[i]);
-                    }
-                    
+                    /*
                     // Create cliff faces as neccessary
                     // Facing towards camera, simplest cliff example:
                     // c - a     - associated with hex
@@ -687,7 +649,188 @@
                         }
                         
                     }
-                    
+                    */
+                    // edge pointing towards j
+                    for (var i  = 0; i < hex.neighbours.length; i++) {
+                        var j = (i+1) % hex.neighbours.length;
+                        var k = (i+2) % hex.neighbours.length;
+                        
+                        var triplet1 = getTriplet(hex, hex.neighbours[i], hex.neighbours[j]);
+                        
+                        var n_e = getEdge(hex, hex.neighbours[j]);
+                        
+                        var triplet2 = getTriplet(hex, hex.neighbours[j], hex.neighbours[k]);
+                        
+                        // FIRST SIDE
+                        if (!triplet1.triple_cliff | triplet1.vertices[hex.id].y < triplet1.vertices[hex.neighbours[i].id].y) {
+                            var a = triplet1.vertices[hex.id];
+                            var b = triplet1.vertices[hex.neighbours[j].id];
+                            var c = n_e.vertices[hex.id];
+                            var d = n_e.vertices[hex.neighbours[j].id];
+                            
+                            var a_i = tri_offset+a.index;
+                            var b_i = tri_offset+b.index;
+                            var c_i = edge_offset+c.index;
+                            var d_i = edge_offset+d.index;
+                            
+                            var m1_i = tri_offset+triplet1.mid.index;
+                            var m2_i = edge_offset+n_e.mid.index;
+                            
+                            if (a.y > b.y & c.y > d.y) {
+                                faceArray.push(a_i, m2_i, m1_i);
+                                faceArray.push(a_i, c_i, m2_i);
+                                faceArray.push(m1_i, d_i, b_i);
+                                faceArray.push(m1_i, m2_i, d_i);
+                            } else if (a.y > b.y & c.y == d.y) {
+                                faceArray.push(c_i, m1_i, a_i);
+                                faceArray.push(c_i, b_i, m1_i);
+                            }  else if (a.y == b.y & c.y > d.y) {
+                                faceArray.push(a_i, c_i, m2_i);
+                                faceArray.push(a_i, m2_i, d_i);
+                            } else if (a.y < b.y & c.y > d.y) {
+                                faceArray.push(a_i, m2_i, d_i);
+                                faceArray.push(a_i, c_i, m2_i);
+                            } else if (a.y > b.y & c.y < d.y) {
+                                faceArray.push(c_i, m1_i, a_i);
+                                faceArray.push(c_i, b_i, m1_i);
+                            }
+                        } else if (triplet1.vertices[hex.neighbours[j].id].y > triplet1.vertices[hex.neighbours[i].id].y) {
+                            
+                            var a = triplet1.vertices[hex.id];
+                            var b = triplet1.vertices[hex.neighbours[j].id];
+                            var c = n_e.vertices[hex.id];
+                            var d = n_e.vertices[hex.neighbours[j].id];
+                            
+                            var a_i = tri_offset+a.index;
+                            var b_i = tri_offset+b.index;
+                            var c_i = edge_offset+c.index;
+                            var d_i = edge_offset+d.index;
+                            
+                            var m1_i = tri_offset+triplet1.upper_mid.index;
+                            var m2_i = edge_offset+n_e.mid.index;
+                            
+                            if (a.y > b.y & c.y > d.y) {
+                                faceArray.push(a_i, m2_i, m1_i);
+                                faceArray.push(a_i, c_i, m2_i);
+                                faceArray.push(m1_i, d_i, b_i);
+                                faceArray.push(m1_i, m2_i, d_i);
+                            } else if (a.y > b.y & c.y == d.y) {
+                                faceArray.push(c_i, m1_i, a_i);
+                                faceArray.push(c_i, b_i, m1_i);
+                            }  else if (a.y == b.y & c.y > d.y) {
+                                faceArray.push(a_i, c_i, m2_i);
+                                faceArray.push(a_i, m2_i, d_i);
+                            } else if (a.y < b.y & c.y > d.y) {
+                                faceArray.push(a_i, m2_i, d_i);
+                                faceArray.push(a_i, c_i, m2_i);
+                            } else if (a.y > b.y & c.y < d.y) {
+                                faceArray.push(c_i, m1_i, a_i);
+                                faceArray.push(c_i, b_i, m1_i);
+                            }
+                        } else {
+                            var a = tri_offset+triplet1.vertices[hex.id].index;
+                            var b = tri_offset+triplet1.vertices[hex.neighbours[j].id].index;
+                            var a_b = tri_offset+triplet1.vertices[hex.neighbours[i].id].index;
+                            var c = edge_offset+n_e.vertices[hex.id].index;
+                            var d = edge_offset+n_e.vertices[hex.neighbours[j].id].index;
+                            
+                            var u_m = tri_offset+triplet1.upper_mid.index;
+                            var l_m = tri_offset+triplet1.lower_mid.index;
+                            
+                            var m2 = edge_offset+n_e.mid.index;
+                            
+                            faceArray.push(a, c, u_m);
+                            faceArray.push(u_m, c, m2);
+                            faceArray.push(u_m, m2, a_b);
+                            faceArray.push(a_b, m2, l_m);
+                            faceArray.push(l_m, m2, d);
+                            faceArray.push(l_m, d, b);
+                        }
+                        // SECOND SIDE
+                        if (!triplet2.triple_cliff | triplet2.vertices[hex.id].y < triplet2.vertices[hex.neighbours[k].id].y) {
+                            var a = n_e.vertices[hex.id];
+                            var b = n_e.vertices[hex.neighbours[j].id];
+                            var c = triplet2.vertices[hex.id];
+                            var d = triplet2.vertices[hex.neighbours[j].id];
+                            
+                            var a_i = edge_offset+a.index;
+                            var b_i = edge_offset+b.index;
+                            var c_i = tri_offset+c.index;
+                            var d_i = tri_offset+d.index;
+                            
+                            var m1_i = edge_offset+n_e.mid.index;
+                            var m2_i = tri_offset+triplet2.mid.index;
+                            
+                            if (a.y > b.y & c.y > d.y) {
+                                faceArray.push(a_i, m2_i, m1_i);
+                                faceArray.push(a_i, c_i, m2_i);
+                                faceArray.push(m1_i, d_i, b_i);
+                                faceArray.push(m1_i, m2_i, d_i);
+                            } else if (a.y > b.y & c.y == d.y) {
+                                faceArray.push(c_i, m1_i, a_i);
+                                faceArray.push(c_i, b_i, m1_i);
+                            }  else if (a.y == b.y & c.y > d.y) {
+                                faceArray.push(a_i, c_i, m2_i);
+                                faceArray.push(a_i, m2_i, d_i);
+                            } else if (a.y < b.y & c.y > d.y) {
+                                faceArray.push(a_i, m2_i, d_i);
+                                faceArray.push(a_i, c_i, m2_i);
+                            } else if (a.y > b.y & c.y < d.y) {
+                                faceArray.push(c_i, m1_i, a_i);
+                                faceArray.push(c_i, b_i, m1_i);
+                            }
+                        } else if (triplet2.vertices[hex.neighbours[j].id].y > triplet2.vertices[hex.neighbours[k].id].y) {
+                            var a = n_e.vertices[hex.id];
+                            var b = n_e.vertices[hex.neighbours[j].id];
+                            var c = triplet2.vertices[hex.id];
+                            var d = triplet2.vertices[hex.neighbours[j].id];
+                            
+                            var a_i = edge_offset+a.index;
+                            var b_i = edge_offset+b.index;
+                            var c_i = tri_offset+c.index;
+                            var d_i = tri_offset+d.index;
+                            
+                            var m1_i = edge_offset+n_e.mid.index;
+                            var m2_i = tri_offset+triplet2.upper_mid.index;
+                            
+                            if (a.y > b.y & c.y > d.y) {
+                                faceArray.push(a_i, m2_i, m1_i);
+                                faceArray.push(a_i, c_i, m2_i);
+                                faceArray.push(m1_i, d_i, b_i);
+                                faceArray.push(m1_i, m2_i, d_i);
+                            } else if (a.y > b.y & c.y == d.y) {
+                                faceArray.push(c_i, m1_i, a_i);
+                                faceArray.push(c_i, b_i, m1_i);
+                            }  else if (a.y == b.y & c.y > d.y) {
+                                faceArray.push(a_i, c_i, m2_i);
+                                faceArray.push(a_i, m2_i, d_i);
+                            } else if (a.y < b.y & c.y > d.y) {
+                                faceArray.push(a_i, m2_i, d_i);
+                                faceArray.push(a_i, c_i, m2_i);
+                            } else if (a.y > b.y & c.y < d.y) {
+                                faceArray.push(c_i, m1_i, a_i);
+                                faceArray.push(c_i, b_i, m1_i);
+                            }
+                        } else {
+                            var a = edge_offset+n_e.vertices[hex.id].index;
+                            var b = edge_offset+n_e.vertices[hex.neighbours[j].id].index;
+                            var c = tri_offset+triplet2.vertices[hex.id].index;
+                            var d = tri_offset+triplet2.vertices[hex.neighbours[j].id].index;
+                            var c_d = tri_offset+triplet2.vertices[hex.neighbours[k].id].index;
+                            
+                            var u_m = tri_offset+triplet2.upper_mid.index;
+                            var l_m = tri_offset+triplet2.lower_mid.index;
+                            
+                            var m1 = edge_offset+n_e.mid.index;
+                            
+                            faceArray.push(a, c, u_m);
+                            faceArray.push(a, u_m, m1);
+                            faceArray.push(m1, u_m, c_d);
+                            faceArray.push(m1, c_d, l_m);
+                            faceArray.push(m1, l_m, b);
+                            faceArray.push(b, l_m, d);
+                        }
+                    }
                 }
                 
                 
