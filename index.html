@@ -936,8 +936,8 @@
                 
                 vec3 texColor = vec3(0.0);
                 texColor += gammaTexture2D(texY, globalPosition.xz/5.0).xyz*textureWeights.y;
-                texColor += gammaTexture2D(texX, globalPosition.zy/2.0).xyz*textureWeights.x;
-                texColor += gammaTexture2D(texZ, globalPosition.xy/1.0).xyz*textureWeights.z;
+                texColor += gammaTexture2D(texX, globalPosition.zy/7.0).xyz*textureWeights.x;
+                texColor += gammaTexture2D(texZ, globalPosition.xy/5.0).xyz*textureWeights.z;
                 
                 vec3 meanX = gammaTexture2D(texX, vec2(0.0), 10.0).xyz;
                 vec3 meanY = gammaTexture2D(texY, vec2(0.0), 10.0).xyz;
@@ -953,10 +953,10 @@
             
                 gl_FragColor = vec4( texColor*0.025 + max(dot(n,l), 0.0)*texColor + texColor*pow(max(dot(viewerDir, reflection), 0.0), 2000.0), 1.0);
                 
+                //gl_FragColor.rgb = texColor;
                 
                 gl_FragColor = LinearToGamma(gl_FragColor, 2.2);
                 
-                //gl_FragColor.rgb = texColor;
                 //gl_FragColor.rgb = vec3(pow(sqweightsum, 1.0/4.0));
 			}
 		</script>
