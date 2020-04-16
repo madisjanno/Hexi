@@ -14,7 +14,7 @@
             
             // SHADERS AND TEXTURES
             var vertexShader, fragmentShader;
-            var textureY = new THREE.TextureLoader().load( 'Moss.jpeg' );
+            var textureY = new THREE.TextureLoader().load( 'Grass1.jpg' );
             var textureX = new THREE.TextureLoader().load( 'Brick.jpg' );
             var textureZ = new THREE.TextureLoader().load( 'Brick.jpg' );
             
@@ -592,6 +592,7 @@
                         
                         var dir = hex.centre.clone().sub(vertices[edge_offset+edge[i]]).normalize().multiplyScalar(-0.5);
                         vertices.push(hex.centre.clone().add(dir));
+                        //vertices.push(vertices[edge_offset+edge[i]].clone().sub(dir));
                     }
                     
                     var internal_tri_offset = vertices.length;
@@ -600,6 +601,7 @@
                         var j = (i+1) % tri.length;
                         var dir = hex.centre.clone().sub(vertices[tri_offset+tri[i]]).normalize().multiplyScalar(-0.5);
                         vertices.push(hex.centre.clone().add(dir));
+                        //vertices.push(vertices[tri_offset+tri[i]].clone().sub(dir));
                     }
                     
                     // Add hex faces
@@ -615,41 +617,12 @@
                         faceArray.push(internal_tri_offset+i, edge_offset+edge[i], internal_edge_offset+i);
                         
                     }
-                    /*
+                    
                     // Create cliff faces as neccessary
                     // Facing towards camera, simplest cliff example:
                     // c - a     - associated with hex
                     // |   |
                     // d - b     - associated with opposing hex
-                    for (var i = 0; i < indices.length; i++) {
-                        j = (i+1) % indices.length;
-                        
-                        var a = vertices[indices[i]].y;
-                        var b = vertices[o_indices[i]].y;
-                        var c = vertices[indices[j]].y;
-                        var d = vertices[o_indices[j]].y;
-                        
-                        if (a > b & c > d) {
-                            faceArray.push(indices[i], mid_indices[j], mid_indices[i]);
-                            faceArray.push(indices[i], indices[j], mid_indices[j]);
-                            faceArray.push(mid_indices[i], o_indices[j], o_indices[i]);
-                            faceArray.push(mid_indices[i], mid_indices[j], o_indices[j]);
-                        } else if (a > b & c == d) {
-                            faceArray.push(indices[j], mid_indices[i], indices[i]);
-                            faceArray.push(indices[j], o_indices[i], mid_indices[i]);
-                        }  else if (a == b & c > d) {
-                            faceArray.push(indices[i], indices[j], mid_indices[j]);
-                            faceArray.push(indices[i], mid_indices[j], o_indices[j]);
-                        } else if (a < b & c > d) {
-                            faceArray.push(indices[i], mid_indices[j], o_indices[j]);
-                            faceArray.push(indices[i], indices[j], mid_indices[j]);
-                        } else if (a > b & c < d) {
-                            faceArray.push(indices[j], mid_indices[i], indices[i]);
-                            faceArray.push(indices[j], o_indices[i], mid_indices[i]);
-                        }
-                        
-                    }
-                    */
                     // edge pointing towards j
                     for (var i  = 0; i < hex.neighbours.length; i++) {
                         var j = (i+1) % hex.neighbours.length;
@@ -852,7 +825,15 @@
                 for (neighbours of neighbours) {
                     cliff = false;
 
-                    if (Math.abs(hex.centre.y-neighbours.centre.y) > 1.0) {
+                    if (Math.abs(hex.centre.y-neighbours.centre.y) > 0.5) {
+                        cliff = true;
+                    }
+                    
+                    if ( ((hex.id+neighbours.id+3)%4) == 0 ) {
+                        cliff = false;
+                    }
+                    
+                    if (Math.abs(hex.centre.y-neighbours.centre.y) > 2.5) {
                         cliff = true;
                     }
                     
@@ -929,6 +910,14 @@
             
             varying vec3 globalNormal;
             varying vec3 globalPosition;
+            
+            vec4 gammaTexture2D(sampler2D tex, vec2 uv) {
+                return GammaToLinear(texture2D(tex, uv), 2.2);
+            }
+            
+            vec4 gammaTexture2D(sampler2D tex, vec2 uv, float bias) {
+                return GammaToLinear(texture2D(tex, uv, bias), 2.2);
+            }
 			
 			void main() {
                 vec3 camPos = interpolatedPosition;
@@ -941,17 +930,17 @@
                 
                 vec3 reflection = reflect(-l, n);
                 
-                vec3 absNormal = abs(globalNormal);
+                vec3 absNormal = abs(normalize(globalNormal));
                 vec3 textureWeights = absNormal/(absNormal.x+absNormal.y+absNormal.z);
                 
                 vec3 texColor = vec3(0.0);
-                texColor += texture2D(texY, globalPosition.xz/5.0).xyz*textureWeights.y;
-                texColor += texture2D(texX, globalPosition.zy/2.0).xyz*textureWeights.x;
-                texColor += texture2D(texZ, globalPosition.xy/2.0).xyz*textureWeights.z;
+                texColor += gammaTexture2D(texY, globalPosition.xz/5.0).xyz*textureWeights.y;
+                texColor += gammaTexture2D(texX, globalPosition.zy/2.0).xyz*textureWeights.x;
+                texColor += gammaTexture2D(texZ, globalPosition.xy/1.0).xyz*textureWeights.z;
                 
-                vec3 meanX = texture2D(texX, vec2(0.0), 1.0).xyz;
-                vec3 meanY = texture2D(texY, vec2(0.0), 1.0).xyz;
-                vec3 meanZ = texture2D(texZ, vec2(0.0), 1.0).xyz;
+                vec3 meanX = gammaTexture2D(texX, vec2(0.0), 10.0).xyz;
+                vec3 meanY = gammaTexture2D(texY, vec2(0.0), 10.0).xyz;
+                vec3 meanZ = gammaTexture2D(texZ, vec2(0.0), 10.0).xyz;
                 
                 vec3 mean = vec3(0.0);
                 mean += meanY*textureWeights.y;
@@ -959,21 +948,25 @@
                 mean += meanZ*textureWeights.z;
                 
                 vec3 correctedColor = vec3(0.0);
-                correctedColor += (texture2D(texY, globalPosition.xz/5.0).xyz - meanY) * sqrt(textureWeights.y);
-                correctedColor += (texture2D(texX, globalPosition.zy/2.0).xyz - meanX) * sqrt(textureWeights.x);
-                correctedColor += (texture2D(texZ, globalPosition.xy/2.0).xyz - meanZ) * sqrt(textureWeights.z);
+                correctedColor += (gammaTexture2D(texY, globalPosition.xz/5.0).xyz - meanY) * sqrt(textureWeights.y);
+                correctedColor += (gammaTexture2D(texX, globalPosition.zy/2.0).xyz - meanX) * sqrt(textureWeights.x);
+                correctedColor += (gammaTexture2D(texZ, globalPosition.xy/1.0).xyz - meanZ) * sqrt(textureWeights.z);
                 
                 float sqweightsum = textureWeights.x*textureWeights.x+textureWeights.y*textureWeights.y+textureWeights.z*textureWeights.z;
+                sqweightsum += 2.0*textureWeights.x*textureWeights.z; // remove if x and z textures are not correlated
                 
                 texColor = (texColor-mean)/sqrt(sqweightsum) + mean;
                 
                 //texColor = correctedColor+mean;
             
-                gl_FragColor = vec4( texColor*0.1 + max(dot(n,l), 0.0)*texColor + pow(max(dot(viewerDir, reflection), 0.0), 2000.0), 1.0);
+                gl_FragColor = vec4( texColor*0.0 + max(dot(n,l), 0.0)*texColor + pow(max(dot(viewerDir, reflection), 0.0), 2000.0), 1.0);
+                
+                
+                gl_FragColor = LinearToGamma(gl_FragColor, 2.2);
                 
                 //gl_FragColor.rgb = correctedColor+mean;
                 //gl_FragColor.rgb = texColor;
-                //gl_FragColor.rgb = vec3(textureWeights.x*textureWeights.x+textureWeights.y*textureWeights.y+textureWeights.z*textureWeights.z);
+                //gl_FragColor.rgb = vec3(sqweightsum);
 			}
 		</script>
 
