@@ -948,26 +948,16 @@
                 mean += meanX*textureWeights.x;
                 mean += meanZ*textureWeights.z;
                 
-                vec3 correctedColor = vec3(0.0);
-                correctedColor += (gammaTexture2D(texY, globalPosition.xz/5.0).xyz - meanY) * sqrt(textureWeights.y);
-                correctedColor += (gammaTexture2D(texX, globalPosition.zy/2.0).xyz - meanX) * sqrt(textureWeights.x);
-                correctedColor += (gammaTexture2D(texZ, globalPosition.xy/1.0).xyz - meanZ) * sqrt(textureWeights.z);
-                
                 float sqweightsum = textureWeights.x*textureWeights.x+textureWeights.y*textureWeights.y+textureWeights.z*textureWeights.z;
-                sqweightsum += 2.0*textureWeights.x*textureWeights.z; // remove if x and z textures are not correlated
-                
-                texColor = (texColor-mean)/sqrt(sqweightsum) + mean;
-                
-                //texColor = correctedColor+mean;
+                texColor = (texColor-mean)/pow(sqweightsum, 1.0/5.0) + mean;
             
-                gl_FragColor = vec4( texColor*0.0 + max(dot(n,l), 0.0)*texColor + pow(max(dot(viewerDir, reflection), 0.0), 2000.0), 1.0);
+                gl_FragColor = vec4( texColor*0.05 + max(dot(n,l), 0.0)*texColor + texColor*pow(max(dot(viewerDir, reflection), 0.0), 2000.0), 1.0);
                 
                 
                 gl_FragColor = LinearToGamma(gl_FragColor, 2.2);
                 
-                //gl_FragColor.rgb = correctedColor+mean;
                 //gl_FragColor.rgb = texColor;
-                //gl_FragColor.rgb = vec3(sqweightsum);
+                //gl_FragColor.rgb = vec3(pow(sqweightsum, 1.0/4.0));
 			}
 		</script>
 
