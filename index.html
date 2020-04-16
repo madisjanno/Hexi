@@ -590,7 +590,7 @@
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
                         
-                        var dir = hex.centre.clone().sub(vertices[edge_offset+edge[i]]).normalize().multiplyScalar(-0.55);
+                        var dir = hex.centre.clone().sub(vertices[edge_offset+edge[i]]).normalize().multiplyScalar(-0.25);
                         //vertices.push(hex.centre.clone().add(dir));
                         vertices.push(vertices[edge_offset+edge[i]].clone().sub(dir));
                     }
@@ -599,7 +599,7 @@
                     
                     for (var i = 0; i < tri.length; i++) {
                         var j = (i+1) % tri.length;
-                        var dir = hex.centre.clone().sub(vertices[tri_offset+tri[i]]).normalize().multiplyScalar(-0.55);
+                        var dir = hex.centre.clone().sub(vertices[tri_offset+tri[i]]).normalize().multiplyScalar(-0.25);
                         //vertices.push(hex.centre.clone().add(dir));
                         vertices.push(vertices[tri_offset+tri[i]].clone().sub(dir));
                     }
