@@ -951,7 +951,7 @@
                 float sqweightsum = textureWeights.x*textureWeights.x+textureWeights.y*textureWeights.y+textureWeights.z*textureWeights.z;
                 texColor = (texColor-mean)/pow(sqweightsum, 1.0/5.0) + mean;
             
-                gl_FragColor = vec4( texColor*0.05 + max(dot(n,l), 0.0)*texColor + texColor*pow(max(dot(viewerDir, reflection), 0.0), 2000.0), 1.0);
+                gl_FragColor = vec4( texColor*0.025 + max(dot(n,l), 0.0)*texColor + texColor*pow(max(dot(viewerDir, reflection), 0.0), 2000.0), 1.0);
                 
                 
                 gl_FragColor = LinearToGamma(gl_FragColor, 2.2);
