@@ -20,6 +20,8 @@
             var textureX = new THREE.TextureLoader().load( 'Bark4.jpeg' );
             var textureZ = new THREE.TextureLoader().load( 'Bark4.jpeg' );
             
+            var terrainMaterial;
+            
             // STATS
             var stats = new Stats();
             stats.showPanel( 0 );
@@ -34,12 +36,13 @@
                 cliffEdges: new THREE.Group()
             }
             
+            var chunk;
+            var paused = false;
             // STUFF
             var hexes = [];
             var hexArray = [];
             
             var triplets = [];
-            var tripletArray = [];
             
             var edges = [];
             var edgeArray = [];
@@ -83,7 +86,7 @@
                 var hex_width = 2;
                 var hex_height = 1.73;
                 
-                var rows = 17;
+                var rows = 21;
                 var ver_offset = (rows-1)/2*hex_height;
                 
                 for (var i = 0; i < rows; i++) {
@@ -99,15 +102,6 @@
                     }
                     hexes.push(row_hexes);
                 }
-                
-                hexes[1][2].centre.y = 2;
-                hexes[1][2].debugModel.position.y = 2;
-                
-                hexes[3][2].centre.y = 2;
-                hexes[3][2].debugModel.position.y = 2;
-                
-                hexes[3][3].centre.y = -1;
-                hexes[3][3].debugModel.position.y = -1;
                 
                 // NEIGHBOURS INIT
                 for (var row = 1; row < hexes.length-1; row++) {
@@ -159,82 +153,43 @@
                 var i = 1;
                 createShape(hexes[row][i], [ hexes[row][i-1], hexes[row-1][i-1], hexes[row-1][i] ]);
                 
-                generateEdges();
-                generateTriplets();
-                finishEdges();
+                
+                pregenerateHexGeometry(hexArray);
                 
                 var directionalLight = new THREE.DirectionalLight( 0xffffff, 1 );
                 directionalLight.position.set(10.11, 10, 10)
                 scene.add( directionalLight );
                 
+                var uniforms = {
+                    lightPosition: new THREE.Uniform(directionalLight.position),
+                    color: new THREE.Uniform(new THREE.Vector3(1.0,1.0,1.0)),
+                    texY: new THREE.Uniform(textureY),
+                    texX: new THREE.Uniform(textureX),
+                    texZ: new THREE.Uniform(textureZ),
+                }
+                
+                uniforms = THREE.UniformsUtils.merge( [
+                    uniforms,
+                    THREE.UniformsLib[ "lights" ]
+                ] );
+                
+                uniforms.texY.value.needsUpdate = true;
+                uniforms.texX.value.needsUpdate = true;
+                uniforms.texZ.value.needsUpdate = true;
+                
+                terrainMaterial = new THREE.ShaderMaterial( {
+                    vertexShader: vertexShader,
+                    fragmentShader: fragmentShader,
+                    uniforms: uniforms,
+                    lights:true
+                } );
                 
                 var terrainGeom = createTerrainGeometry(hexArray.filter(h => h.active));
                 terrainGeom.computeVertexNormals();
-                
-                var uniforms = {
-                    lightPosition: new THREE.Uniform(directionalLight.position),
-                    color: new THREE.Uniform(new THREE.Vector3(1.0,1.0,1.0)),
-                    texY: new THREE.Uniform(textureY),
-                    texX: new THREE.Uniform(textureX),
-                    texZ: new THREE.Uniform(textureZ),
-                }
-                
-                uniforms = THREE.UniformsUtils.merge( [
-                    uniforms,
-                    THREE.UniformsLib[ "lights" ]
-                ] );
-                
-                uniforms.texY.value.needsUpdate = true;
-                uniforms.texX.value.needsUpdate = true;
-                uniforms.texZ.value.needsUpdate = true;
-                
-                var material = new THREE.ShaderMaterial( {
-                    color: 0xffffff,
-                    vertexShader: vertexShader,
-                    fragmentShader: fragmentShader,
-                    uniforms: uniforms,
-                    lights:true
-                } );
-                //material = new THREE.MeshNormalMaterial();
-                var mesh = new THREE.Mesh( terrainGeom, material );
-                //scene.add(mesh);
-                
-                
-                var uniforms = {
-                    lightPosition: new THREE.Uniform(directionalLight.position),
-                    color: new THREE.Uniform(new THREE.Vector3(1.0,1.0,1.0)),
-                    texY: new THREE.Uniform(textureY),
-                    texX: new THREE.Uniform(textureX),
-                    texZ: new THREE.Uniform(textureZ),
-                }
-
-                uniforms = THREE.UniformsUtils.merge( [
-                    uniforms,
-                    THREE.UniformsLib[ "lights" ]
-                ] );
-
-                uniforms.texY.value.needsUpdate = true;
-                uniforms.texX.value.needsUpdate = true;
-                uniforms.texZ.value.needsUpdate = true;
-
-                var material = new THREE.ShaderMaterial( {
-                    color: 0xffffff,
-                    vertexShader: vertexShader,
-                    fragmentShader: fragmentShader,
-                    uniforms: uniforms,
-                    lights:true
-                } );
-                
-                for (hex of hexArray.filter(h => h.active)) {
-                    var terrainGeom = createTerrainGeometry([hex]);
-                    terrainGeom.computeVertexNormals();
-
-                    //material = new THREE.MeshNormalMaterial();
-                    var mesh = new THREE.Mesh( terrainGeom, material );
-                    scene.add(mesh);
-                }
-                
-                
+                var mesh = new THREE.Mesh( terrainGeom, terrainMaterial );
+                scene.add(mesh);
+            
+                chunk = mesh;
                 
                 for (cat in debugCategories) {
                     scene.add(debugCategories[cat])
@@ -262,246 +217,55 @@
                         prevY = event.offsetY;
                     }
                 }, false );
+                renderer.domElement.addEventListener( 'wheel', event => {
+                    
+                    var raycaster = new THREE.Raycaster();
+                    var mouse = new THREE.Vector2();
+                    mouse.x = ( event.clientX /width ) * 2 - 1;
+                    mouse.y = - ( event.clientY / height ) * 2 + 1;
+                    
+                    raycaster.setFromCamera( mouse, camera );
+                    
+                    var intersects = raycaster.intersectObjects( [chunk] )[0];
+                    console.log(event)
+                    
+                    if (intersects) {
+                        var closestDist = 1000000;
+                        var closest = undefined;
+                        for (hex of hexArray) {
+                            var dist = hex.centre.distanceToSquared(intersects.point);
+                            if (dist < closestDist) {
+                                closestDist = dist;
+                                closest = hex;
+                            }
+                        }
+                        closest.centre.y += event.deltaY*0.003;
+                        closest.debugModel.position.y += event.deltaY*0.003;
+                        
+                        pregenerateHexGeometry(hexArray, regenerate=true);
+                        
+                        scene.remove(chunk);
+                        chunk.geometry.dispose();
+                        
+                        pregenerateHexGeometry(hexArray, regenerate=true);
+                
+                        var terrainGeom = createTerrainGeometry(hexArray.filter(h => h.active));
+                        terrainGeom.computeVertexNormals();
+                        var mesh = new THREE.Mesh( terrainGeom, terrainMaterial );
+                        scene.add(mesh);
+                        chunk = mesh;
+                    }
+                }, false );
                 
                 createGUI();
 				draw();
 			}
             
-            var triplet_id = 0;
-            var triplet_vertex_index = 0;
-            function generateTriplet(a,b,c) {
-                var triplet = {a:a.id,b:b.id,c:c.id};
-                triplet.id = triplet_id++;
-                triplet.vertex_index = triplet_vertex_index;
-                tripletArray.push(triplet);
-                
-                triplet.position =  a.centre.clone().add(b.centre).add(c.centre).divideScalar(3);
-                
-                var ab = getEdge(a,b);
-                var bc = getEdge(c,b);
-                var ac = getEdge(c,a);
-                
-                ab.triplets.push(triplet);
-                bc.triplets.push(triplet);
-                ac.triplets.push(triplet);
-                
-                var vertices = {}
-                
-                if (ab.cliff & bc.cliff & ac.cliff) {
-                    triplet.a_pos = triplet.position.clone().setComponent(1, a.centre.y);
-                    triplet.b_pos = triplet.position.clone().setComponent(1, b.centre.y);
-                    triplet.c_pos = triplet.position.clone().setComponent(1, c.centre.y);
-                    
-                    triplet.a_pos.index = triplet_vertex_index++;
-                    triplet.b_pos.index = triplet_vertex_index++;
-                    triplet.c_pos.index = triplet_vertex_index++;
-                    
-                    var upper = Math.max(a.centre.y+b.centre.y, b.centre.y+c.centre.y, a.centre.y+c.centre.y)/2;
-                    var lower = Math.min(a.centre.y+b.centre.y, b.centre.y+c.centre.y, a.centre.y+c.centre.y)/2;
-                    
-                    triplet.upper_mid = triplet.position.clone().setComponent(1, upper);
-                    triplet.lower_mid = triplet.position.clone().setComponent(1, lower);
-                    
-                    triplet.upper_mid.index = triplet_vertex_index++;
-                    triplet.lower_mid.index = triplet_vertex_index++;
-                    triplet.mid = triplet.lower_mid;
-                    
-                    vertices[a.id] = triplet.a_pos;
-                    vertices[b.id] = triplet.b_pos;
-                    vertices[c.id] = triplet.c_pos;
-                    
-                    triplet.triple_cliff = true;
-                    
-                    triplet.vertArr = [triplet.a_pos, triplet.b_pos, triplet.c_pos, triplet.upper_mid, triplet.lower_mid];
-                    
-                    createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets");
-                    createDebugSphere(triplet.b_pos, 0xff0000, "cliffTriplets" );
-                    createDebugSphere(triplet.c_pos, 0xff0000, "cliffTriplets" );
-                } else if (ab.cliff & bc.cliff) {
-                    triplet.a_pos = triplet.position.clone().setComponent(1, (a.centre.y+c.centre.y)/2 );
-                    triplet.b_pos = triplet.position.clone().setComponent(1, b.centre.y);
-                    triplet.c_pos = triplet.a_pos;
-                    
-                    triplet.mid = triplet.a_pos.clone().add(triplet.b_pos).divideScalar(2);
-                    
-                    triplet.a_pos.index = triplet_vertex_index++;
-                    triplet.b_pos.index = triplet_vertex_index++;
-                    triplet.mid.index = triplet_vertex_index++;
-                    
-                    vertices[a.id] = triplet.a_pos;
-                    vertices[b.id] = triplet.b_pos;
-                    vertices[c.id] = triplet.c_pos;
-                    
-                    triplet.vertArr = [triplet.a_pos, triplet.b_pos, triplet.mid];
-                    
-                    createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
-                    createDebugSphere(triplet.b_pos, 0xff0000, "cliffTriplets" );
-                    createDebugSphere(triplet.mid, 0xff0000, "cliffTriplets" );
-                } else if (ab.cliff & ac.cliff) {
-                    triplet.a_pos = triplet.position.clone().setComponent(1, a.centre.y);
-                    triplet.b_pos = triplet.position.clone().setComponent(1, (b.centre.y+c.centre.y)/2 );
-                    triplet.c_pos = triplet.b_pos;
-                    
-                    triplet.mid = triplet.a_pos.clone().add(triplet.b_pos).divideScalar(2);
-                    
-                    triplet.a_pos.index = triplet_vertex_index++;
-                    triplet.b_pos.index = triplet_vertex_index++;
-                    triplet.mid.index = triplet_vertex_index++;
-                    
-                    vertices[a.id] = triplet.a_pos;
-                    vertices[b.id] = triplet.b_pos;
-                    vertices[c.id] = triplet.c_pos;
-                    
-                    triplet.vertArr = [triplet.a_pos, triplet.b_pos, triplet.mid];
-                    
-                    createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
-                    createDebugSphere(triplet.b_pos, 0xff0000, "cliffTriplets" );
-                    createDebugSphere(triplet.mid, 0xff0000, "cliffTriplets" );
-                } else if (bc.cliff & ac.cliff) {
-                    triplet.a_pos = triplet.position.clone().setComponent(1, (a.centre.y+b.centre.y)/2 );
-                    triplet.b_pos = triplet.a_pos;
-                    triplet.c_pos = triplet.position.clone().setComponent(1, c.centre.y);
-                    
-                    triplet.mid = triplet.a_pos.clone().add(triplet.c_pos).divideScalar(2);
-                    
-                    triplet.a_pos.index = triplet_vertex_index++;
-                    triplet.c_pos.index = triplet_vertex_index++;
-                    triplet.mid.index = triplet_vertex_index++;
-                    
-                    vertices[a.id] = triplet.a_pos;
-                    vertices[b.id] = triplet.b_pos;
-                    vertices[c.id] = triplet.c_pos;
-                    
-                    triplet.vertArr = [triplet.a_pos, triplet.c_pos, triplet.mid];
-                    
-                    createDebugSphere(triplet.a_pos, 0xff0000, "cliffTriplets" );
-                    createDebugSphere(triplet.c_pos, 0xff0000, "cliffTriplets" );
-                    createDebugSphere(triplet.mid, 0xff0000, "cliffTriplets" );
-                } else {
-                    triplet.a_pos = triplet.position;
-                    triplet.b_pos = triplet.position;
-                    triplet.c_pos = triplet.position;
-                    triplet.mid = triplet.position;
-                    
-                    triplet.position.index = triplet_vertex_index++;
-                    
-                    vertices[a.id] = triplet.a_pos;
-                    vertices[b.id] = triplet.b_pos;
-                    vertices[c.id] = triplet.c_pos;
-                    
-                    triplet.vertArr = [triplet.position];
-                    
-                    createDebugSphere(triplet.position, 0xffff00, "regularTriplets" );
-                }
-                
-                triplet.vertices = vertices;
-                
-                return triplet;
-            }
-            
-            function generateEdges() {
-                for (var i = 0; i < latestID; i++) {
-                    edges.push([])
-                }
-                
-                for (hex of hexArray) {
-                    for (n of hex.neighbours) {
-                        getEdge(hex, n, generate=true);
-                    }
-                }
-            }
-            
-            function getEdge(a,b, generate = false) {
-                if (a.isHex)
-                    a = a.id;
-                if (b.isHex)
-                    b = b.id;
-                
-                if (a > b) {
-                    a = b + (b=a, 0)
-                }
-                
-                for (p of edges[a]) {
-                    if (p.b == b) {
-                        return p;
-                    }
-                }
-                if (generate) {
-                    var e = generateEdge(hexArray[a],hexArray[b]);
-                    edges[a].push(e)
-                    return e;
-                } else
-                    throw new Error("Edge " + [a,b] + " not found.")
-            }
-            
-            var edge_id = 0;
-            function generateEdge(a,b) {
-                var edge = {id:edge_id++, a:a.id, b:b.id, triplets:[]};
-                
-                for (d of a.neighboursData) {
-                    if (d.hex == b) {
-                        edge.cliff = d.cliff;
-                        break;
-                    }
-                }
-                
-                edgeArray.push(edge);
-                
-                return edge;
-            }
-            
-            var edge_vertex_index = 0;
-            function finishEdges() {
-                for (edge of edgeArray) {
-                    if (!hexArray[edge.a].active & !hexArray[edge.b].active) {
-                        continue;
-                    }
-                    edge.active = true;
-                    
-                    var a = hexArray[edge.a];
-                    var b = hexArray[edge.b];
-                    
-                    edge.position = edge.triplets[0].vertices[a.id].clone().add(edge.triplets[1].vertices[a.id]).divideScalar(2);
-                    
-                    edge.vertices = {}
-                    edge.vertArr = [];
-                    if (edge.cliff) {
-                        edge.vertices[a.id] = edge.position.clone().setComponent(1, a.centre.y );
-                        edge.vertices[b.id] = edge.position.clone().setComponent(1, b.centre.y );
-                        
-                        //edge.vertices[a.id].y = (edge.vertices[a.id].y*5 + edge.vertices[b.id].y)/6;
-                        //edge.vertices[b.id].y = (edge.vertices[b.id].y*5 + edge.vertices[a.id].y)/6;
-                        
-                        edge.mid = edge.position.clone().setComponent(1, (a.centre.y+b.centre.y)/2 );
-                        
-                        edge.vertices[a.id].index = edge_vertex_index++;
-                        edge.vertices[b.id].index = edge_vertex_index++;
-                        edge.mid.index = edge_vertex_index++;
-                        
-                        edge.vertArr.push(edge.vertices[a.id], edge.vertices[b.id], edge.mid);
-                        
-                        createDebugSphere(edge.vertices[a.id], 0x0000ff, "cliffEdges");
-                        createDebugSphere(edge.vertices[b.id], 0x0000ff, "cliffEdges");
-                        createDebugSphere(edge.mid, 0x0000ff, "cliffEdges");
-                    } else {
-                        edge.vertices[a.id] = edge.position;
-                        edge.vertices[b.id] = edge.position;
-                        edge.mid = edge.position;
-                        
-                        edge.vertices[a.id].index = edge_vertex_index++;
-                        edge.vertArr.push(edge.position);
-                        
-                        createDebugSphere(edge.position, 0x00ffff, "regularEdges");
-                    }
-                    
-                }
-            }
-            
             var latestID = 0;
             function createHex(centre, active=true) {
                 if (latestID == 50) centre.y = 5
                 
-                var mesh = createDebugSphere(centre, 0xffffff, "hexCentres");
+                var mesh = createDebugSphere(centre, 0xffffff, "hexCentres", []);
                 
                 var hex = {id: latestID++, centre: centre, neighbours: [], neighboursData: [], debugModel: mesh, isHex:true, active: active};
                 hexArray.push(hex);
@@ -527,7 +291,7 @@
                         cliff = true;
                     }
                     
-                    hex.neighboursData.push({hex:neighbours ,cliff: cliff});
+                    hex.neighboursData.push({hex:neighbours, cliff: cliff});
                 }
             }
             
@@ -543,6 +307,8 @@
                     funcs[cat] = wrap(cat);
                     gui.add(funcs, cat);
                 }
+                
+                gui.add(this, "paused");
             }
  
 			var tick = 0
@@ -556,9 +322,6 @@
                 camera.lookAt(lookAt);
                 
                 renderer.render( scene, camera );
-                
-                var terrainGeom = createTerrainGeometry(hexArray.filter(h => h.active));
-                terrainGeom.computeVertexNormals();
                 
                 stats.end();
 			}
