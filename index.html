@@ -14,6 +14,8 @@
 			var lookAt = new THREE.Vector3(0.0, 0.0, 0.0);
 			var viewerPosition = new THREE.Vector3(10.0, 10.0, 20.0);
             
+            var width, height
+            
             // SHADERS AND TEXTURES
             var vertexShader, fragmentShader;
             var textureY = new THREE.TextureLoader().load( 'Grass1.jpg' );
@@ -39,6 +41,10 @@
             var chunk;
             var paused = false;
             // STUFF
+            var hexMap = new Map();
+            var chunkMap = new Map();
+            var activeChunks = [];
+            
             var hexes = [];
             var hexArray = [];
             
@@ -49,18 +55,26 @@
             
             // UI
             var dragging = false;
-            var prevX = 0;
-            var prevY = 0;
-            var horAngle = 0;
-            var vertAngle = 0;
+            var grabPlane;
+            var grabPoint;
+            
+            var rotating = false;
+            var prevX, prevY;
+            
+            var zoom = 10;
+            var screenCentreLocation = new THREE.Vector3();
+            
+            var horAngle = 0.0;
+            var vertAngle = 3.14/3.14;
+            
 		
 			function onLoad() {
                 
 				var canvasContainer = document.getElementById('myCanvasContainer');
                 document.body.appendChild( stats.dom );
                 
-				var width = 1200; 
-				var height = 800;
+				width = 1200; 
+				height = 800;
 				
                 renderer = new THREE.WebGLRenderer(); 
                 renderer.setSize(width, height);
@@ -97,7 +111,7 @@
                     
                     for (var j = 0; j < hexes_in_row; j++) {
                         var active = j > 0 & j < (hexes_in_row-1);
-                        var hex = createHex(new THREE.Vector3(j*hex_width-hor_offset, Math.random()*2, i*hex_height-ver_offset), active);
+                        var hex = createHex(new THREE.Vector3(j*hex_width-hor_offset, (Math.random()-0.5)*2*3, i*hex_height-ver_offset), active);
                         row_hexes.push(hex);
                     }
                     hexes.push(row_hexes);
@@ -198,68 +212,161 @@
                 
                 
                 renderer.domElement.addEventListener( 'mousedown', event => {
-                    dragging = true;
-                    prevX = event.offsetX;
-                    prevY = event.offsetY;
+                    if (event.button == 0) {
+                        var raycaster = new THREE.Raycaster();
+                        var mouse = new THREE.Vector2();
+                        mouse.x = ( event.offsetX /width ) * 2 - 1;
+                        mouse.y = - ( event.offsetY / height ) * 2 + 1;
+
+                        raycaster.setFromCamera( mouse, camera );
+
+                        var intersects = raycaster.intersectObjects( [chunk] )[0];
+                        
+                        grabPlane = new THREE.Plane(new THREE.Vector3(0,1,0), -intersects.point.y);
+                        grabPoint = intersects.point;
+
+                        dragging = true;
+                        rotating = false;
+                    }
+                    if (event.button == 2) {
+                        dragging = false;
+                        rotating = true;
+                        
+                        prevX = event.offsetX;
+                        prevY = event.offsetY;
+                    }
                 }, false );
-                renderer.domElement.addEventListener( 'mouseup', event => dragging = false, false );
+                renderer.domElement.addEventListener( 'mouseup', event => {
+                    if (event.button == 0)
+                        dragging = false
+                    if (event.button == 2)
+                        rotating = false;
+                }, false );
                 renderer.domElement.addEventListener( 'mousemove', event => {
                     if (dragging) {
-                        horAngle -= (event.offsetX-prevX)/40
-                        vertAngle -= (event.offsetY-prevY)/40
+                        fixGrabbedPosition(event);
+                    }
+                    if (rotating) {
+                        horAngle -= (event.offsetX-prevX)*0.003;
+                        vertAngle += (event.offsetY-prevY)*0.003;
+                        if (vertAngle > 3.14/2)
+                            vertAngle = 3.14/2;
                         
-                        if (vertAngle < 0.000001)
-                            vertAngle = 0.000001;
-                        if (vertAngle > Math.PI)
-                            vertAngle = Math.PI;
-
                         prevX = event.offsetX;
                         prevY = event.offsetY;
                     }
                 }, false );
                 renderer.domElement.addEventListener( 'wheel', event => {
-                    
-                    var raycaster = new THREE.Raycaster();
-                    var mouse = new THREE.Vector2();
-                    mouse.x = ( event.clientX /width ) * 2 - 1;
-                    mouse.y = - ( event.clientY / height ) * 2 + 1;
-                    
-                    raycaster.setFromCamera( mouse, camera );
-                    
-                    var intersects = raycaster.intersectObjects( [chunk] )[0];
-                    console.log(event)
-                    
-                    if (intersects) {
-                        var closestDist = 1000000;
-                        var closest = undefined;
-                        for (hex of hexArray) {
-                            var dist = hex.centre.distanceToSquared(intersects.point);
-                            if (dist < closestDist) {
-                                closestDist = dist;
-                                closest = hex;
+                    if (event.altKey) {
+                        var raycaster = new THREE.Raycaster();
+                        var mouse = new THREE.Vector2();
+                        mouse.x = ( event.offsetX /width ) * 2 - 1;
+                        mouse.y = - ( event.offsetY / height ) * 2 + 1;
+
+                        raycaster.setFromCamera( mouse, camera );
+
+                        var intersects = raycaster.intersectObjects( [chunk] )[0];
+
+                        if (intersects) {
+                            var closestDist = 1000000;
+                            var closest = undefined;
+                            for (hex of hexArray) {
+                                var dist = hex.centre.distanceToSquared(intersects.point);
+                                if (dist < closestDist) {
+                                    closestDist = dist;
+                                    closest = hex;
+                                }
                             }
+                            closest.centre.y += event.deltaY*0.003;
+                            closest.debugModel.position.y += event.deltaY*0.003;
+
+                            pregenerateHexGeometry(hexArray, regenerate=true);
+
+                            scene.remove(chunk);
+                            chunk.geometry.dispose();
+
+                            pregenerateHexGeometry(hexArray, regenerate=true);
+
+                            var terrainGeom = createTerrainGeometry(hexArray.filter(h => h.active));
+                            terrainGeom.computeVertexNormals();
+                            var mesh = new THREE.Mesh( terrainGeom, terrainMaterial );
+                            scene.add(mesh);
+                            chunk = mesh;
                         }
-                        closest.centre.y += event.deltaY*0.003;
-                        closest.debugModel.position.y += event.deltaY*0.003;
+                    } else {
+                        zoom += event.deltaY*0.003;
+                        updateCameraLocation();
                         
-                        pregenerateHexGeometry(hexArray, regenerate=true);
-                        
-                        scene.remove(chunk);
-                        chunk.geometry.dispose();
-                        
-                        pregenerateHexGeometry(hexArray, regenerate=true);
-                
-                        var terrainGeom = createTerrainGeometry(hexArray.filter(h => h.active));
-                        terrainGeom.computeVertexNormals();
-                        var mesh = new THREE.Mesh( terrainGeom, terrainMaterial );
-                        scene.add(mesh);
-                        chunk = mesh;
+                        if (dragging)
+                            fixGrabbedPosition(event);
                     }
                 }, false );
+                
+                renderer.domElement.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                }, false);
                 
                 createGUI();
 				draw();
 			}
+            
+            function fixGrabbedPosition(event) {
+                var raycaster = new THREE.Raycaster();
+                var mouse = new THREE.Vector2();
+                mouse.x = ( event.offsetX /width ) * 2 - 1;
+                mouse.y = - ( event.offsetY / height ) * 2 + 1;
+                raycaster.setFromCamera( mouse, camera );
+
+                var intersection = raycaster.ray.intersectPlane(grabPlane, new THREE.Vector3());
+                screenCentreLocation.add(grabPoint).sub(intersection);
+                
+                updateCentreLocationHeight();
+                
+                var raycaster = new THREE.Raycaster();
+                var mouse = new THREE.Vector2();
+                mouse.x = ( event.offsetX /width ) * 2 - 1;
+                mouse.y = - ( event.offsetY / height ) * 2 + 1;
+
+                raycaster.setFromCamera( mouse, camera );
+
+                var intersects = raycaster.intersectObjects( [chunk] )[0];
+
+                grabPlane = new THREE.Plane(new THREE.Vector3(0,1,0), -intersects.point.y);
+                grabPoint = intersects.point;
+            }
+            
+            function updateCentreLocationHeight() {
+                var raycaster = new THREE.Raycaster(screenCentreLocation.clone().add(new THREE.Vector3(0,10000,0)), new THREE.Vector3(0,-1,0));
+                var intersects = raycaster.intersectObjects( [chunk] )[0];
+                if (intersects) {
+                    screenCentreLocation.y = intersects.point.y*0.005+screenCentreLocation.y*0.995;
+                }
+                
+                updateCameraLocation();
+            }
+            
+            function updateCameraLocation() {
+                camera.position.copy(screenCentreLocation);
+                
+                var offset = new THREE.Vector3(zoom*Math.sin(horAngle)*Math.cos(vertAngle), zoom*Math.sin(vertAngle), zoom*Math.cos(horAngle)*Math.cos(vertAngle) );
+                camera.position.add(offset);
+                
+                var raycaster = new THREE.Raycaster(camera.position.clone().add(new THREE.Vector3(0,10000,0)), new THREE.Vector3(0,-1,0));
+                
+                var intersects = raycaster.intersectObjects( [chunk] )[0];
+                if (intersects) {
+                    intersects.point.y += 0.1
+                    if (intersects.point.y > camera.position.y) {
+                        var h = intersects.point.y-screenCentreLocation.y;
+                        var hypo = intersects.point.distanceTo(screenCentreLocation);
+                        
+                        vertAngle = Math.asin(h/hypo);
+                    }
+                }
+                
+                camera.lookAt(screenCentreLocation);
+                camera.updateMatrixWorld(true);
+            }
             
             var latestID = 0;
             function createHex(centre, active=true) {
@@ -318,8 +425,9 @@
                 stats.begin();
                 tick += 1;
                 
-                camera.position.set(30*Math.sin(horAngle)*Math.sin(vertAngle), 30*Math.cos(vertAngle), 30*Math.cos(horAngle)*Math.sin(vertAngle) );
-                camera.lookAt(lookAt);
+                //camera.position.set(30*Math.sin(horAngle)*Math.sin(vertAngle), 30*Math.cos(vertAngle), 30*Math.cos(horAngle)*Math.sin(vertAngle) );
+                //camera.lookAt(lookAt);
+                updateCameraLocation();
                 
                 renderer.render( scene, camera );
                 
