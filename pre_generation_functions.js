@@ -1,16 +1,32 @@
 // Creates colored sphere with a "category" as parent
 function createDebugSphere(position, color, category, internalList) {
+    /*
     var material = new THREE.MeshBasicMaterial( { color: color } );
     var mesh = new THREE.Mesh( debugGeometry, material );
     mesh.position.copy( position );
     debugCategories[category].add(mesh);
     internalList.push(mesh);
     return mesh;
+    */
 }
 
 function pregenerateHexGeometry(hexes, regenerate=false) {
-    var newEdges = generateHexEdges(hexes, regenerate);
-    generateHexTriplets(hexes.filter(h => h.active), regenerate);
+    var neighbours = new Set(hexes);
+    for (h of hexes) {
+        for (n of h.neighbours)
+            neighbours.add(n);
+    }
+    
+    var second_neighbours = new Set(neighbours);
+    for (h of Array.from(neighbours)) {
+        for (n of h.neighbours)
+            second_neighbours.add(n);
+    }
+    
+    var newEdges = generateHexEdges(Array.from(second_neighbours), regenerate);
+    
+    generateHexTriplets(Array.from(neighbours), regenerate);
+    
     finishEdges(newEdges);
 }
 
@@ -50,10 +66,6 @@ function getTriplet(a,b,c, generate=false) {
         return n;
     } else
         throw new Error("Triplet " + [a,b,c] + " not found.")
-}
-
-function generateAllTriplets() {    
-    generateHexTriplets(hexArray.filter(h => h.active));
 }
 
 function generateHexTriplets(hexes, regenerate = false) {
@@ -97,9 +109,12 @@ function generateTriplet(a,b,c, regenerate=false) {
     var bc = getEdge(c,b);
     var ac = getEdge(c,a);
 
-    ab.triplets.push(triplet);
-    bc.triplets.push(triplet);
-    ac.triplets.push(triplet);
+    if (!ab.triplets.includes(triplet))
+        ab.triplets.push(triplet);
+    if (!bc.triplets.includes(triplet))
+        bc.triplets.push(triplet);
+    if (!ac.triplets.includes(triplet))
+        ac.triplets.push(triplet);
 
     var vertices = {}
 
@@ -211,6 +226,9 @@ function getEdge(a,b, generate = false) {
     if (a > b) {
         a = b + (b=a, 0)
     }
+    
+    if (!edges[a])
+        throw new Error("Edge " + [a,b] + " not found.")
 
     for (p of edges[a]) {
         if (p.b == b) {
@@ -226,10 +244,6 @@ function getEdge(a,b, generate = false) {
         throw new Error("Edge " + [a,b] + " not found.")
 }
 
-function generateAllEdges() {
-    return generateHexEdges(hexArray);
-}
-
 function generateHexEdges(hexes, regenerate = false) {
     var regennedSet = new Set();
     
@@ -242,8 +256,9 @@ function generateHexEdges(hexes, regenerate = false) {
             
             if (regenerate && !regennedSet.has(e)) {
                 generateEdge(hex, n, regenerate=e);
-                regennedSet.add(e);
+                e.isRaw = true;
             }
+            regennedSet.add(e);
         }
     }
     
@@ -251,7 +266,7 @@ function generateHexEdges(hexes, regenerate = false) {
 }
 
 function generateEdge(a,b, regenerate=false) {
-    var edge = {a:a.id, b:b.id, triplets:[], spheres:[]};
+    var edge = {a:a.id, b:b.id, triplets:[], spheres:[], isRaw:true};
     
     if (regenerate)
         edge = regenerate;
@@ -276,11 +291,12 @@ function generateEdge(a,b, regenerate=false) {
 
 function finishEdges(edges) {
     for (edge of edges) {
-        if (!hexArray[edge.a].active && !hexArray[edge.b].active) {
+        if (!edge.isRaw)
             continue;
-        }
-        edge.active = true;
-
+        
+        if (edge.triplets.length < 2)
+            continue;
+        
         var a = hexArray[edge.a];
         var b = hexArray[edge.b];
 
@@ -308,6 +324,7 @@ function finishEdges(edges) {
 
             createDebugSphere(edge.position, 0x00ffff, "regularEdges", edge.spheres);
         }
-
+        
+        edge.isRaw = false;
     }
 }

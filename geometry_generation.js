@@ -15,7 +15,7 @@ function createTerrainGeometry(drawnHexes) {
             undrawnHexes.push(n_hex);
         }
     }
-    allHexes = [].concat(drawnHexes, undrawnHexes.filter(h => h.active));
+    allHexes = [].concat(drawnHexes, undrawnHexes);
     
     
     // Create faces
@@ -35,6 +35,10 @@ function createTerrainGeometry(drawnHexes) {
         var edge = [];
         for (n of hex.neighbours) {
             var n_e = getEdge(hex, n);
+            
+            if (!n_e.vertices)
+                console.log(n_e);
+            
             edge.push(n_e.vertices[hex.id]);
         }
 
