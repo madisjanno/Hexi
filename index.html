@@ -522,6 +522,7 @@
 
                             var geom = createTerrainGeometry(chunk.hexes);
                             geom.computeVertexNormals();
+                            geom.computeBoundingBox();
 
                             var mesh = new THREE.Mesh(geom, terrainMaterial);
 
