@@ -7,6 +7,7 @@
         <script type="text/javascript" src="dat.gui.min.js"></script>
         <script type="text/javascript" src="pre_generation_functions.js"></script>
         <script type="text/javascript" src="geometry_generation.js"></script>
+        <script type="text/javascript" src="simplex-noise.js"></script>
 		<script type="text/javascript">
 		
             // SETUP
@@ -51,6 +52,8 @@
             
             var edges = [];
             var edgeArray = [];
+            
+            var simplex = new SimplexNoise();
             
             // UI
             var dragging = false;
@@ -333,7 +336,7 @@
                 var offset = new THREE.Vector3(zoom*Math.sin(horAngle)*Math.cos(vertAngle), zoom*Math.sin(vertAngle), zoom*Math.cos(horAngle)*Math.cos(vertAngle) );
                 camera.position.add(offset);
                 
-                var raycaster = new THREE.Raycaster(camera.position.clone().add(new THREE.Vector3(0,10000,0)), new THREE.Vector3(0,-1,0));
+                var raycaster = new THREE.Raycaster(camera.position.clone().add(new THREE.Vector3(0,10000,0)), new THREE.Vector3(0,-1,0), 0, camera.position.y*1.1);
                 
                 var intersects = raycaster.intersectObjects( activeChunks )[0];
                 if (intersects) {
@@ -429,7 +432,11 @@
                 
                 var mesh = createDebugSphere(location, 0xffffff, "hexCentres", []);
                 
-                location.y = Math.random()*3;
+                var smoothness = (simplex.noise2D(location.x*0.15+20000, location.z*0.15)+1)/2;
+                
+                location.y = simplex.noise2D(location.x*0.05, location.z*0.05)*3;
+                location.y += simplex.noise2D(location.x*0.01, location.z*0.01)*10*smoothness;
+                location.y += simplex.noise2D(location.x*0.15, location.z*0.15)*1*smoothness;
                 
                 var hex = {id: latestID++, centre: location, x:x, y:y, neighbours: [], neighboursData: [], debugModel: mesh, isHex:true, isRaw:true};
                 
@@ -461,7 +468,7 @@
                 for (neighbour of hex.neighbours) {
                     cliff = false;
                     
-                    if (Math.abs(hex.centre.y-neighbour.centre.y) > 2.5) {
+                    if (Math.abs(hex.centre.y-neighbour.centre.y) > 1.5) {
                         cliff = true;
                     }
                     
