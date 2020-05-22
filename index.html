@@ -321,11 +321,15 @@
             }
             
             function updateCentreLocationHeight() {
+                /*
                 var raycaster = new THREE.Raycaster(screenCentreLocation.clone().add(new THREE.Vector3(0,10000,0)), new THREE.Vector3(0,-1,0));
                 var intersects = raycaster.intersectObjects( activeChunks )[0];
                 if (intersects) {
                     screenCentreLocation.y = intersects.point.y*0.005+screenCentreLocation.y*0.995;
                 }
+                */
+                
+                screenCentreLocation.y = getLocationHeight(screenCentreLocation.x, screenCentreLocation.z, 0);
                 
                 updateCameraLocation();
             }
@@ -336,17 +340,12 @@
                 var offset = new THREE.Vector3(zoom*Math.sin(horAngle)*Math.cos(vertAngle), zoom*Math.sin(vertAngle), zoom*Math.cos(horAngle)*Math.cos(vertAngle) );
                 camera.position.add(offset);
                 
-                var raycaster = new THREE.Raycaster(camera.position.clone().add(new THREE.Vector3(0,10000,0)), new THREE.Vector3(0,-1,0), 0, camera.position.y*1.1);
-                
-                var intersects = raycaster.intersectObjects( activeChunks )[0];
-                if (intersects) {
-                    intersects.point.y += 0.1
-                    if (intersects.point.y > camera.position.y) {
-                        var h = intersects.point.y-screenCentreLocation.y;
-                        var hypo = intersects.point.distanceTo(screenCentreLocation);
-                        
-                        vertAngle = Math.asin(h/hypo);
-                    }
+                var l_h = getLocationHeight(camera.position.x, camera.position.z)+0.5;
+                if (l_h > camera.position.y) {
+                    var h = l_h-screenCentreLocation.y;
+                    var hypo = new THREE.Vector3(camera.position.x, l_h, camera.position.z).distanceTo(screenCentreLocation);
+
+                    vertAngle = Math.asin(h/hypo);
                 }
                 
                 camera.lookAt(screenCentreLocation);
@@ -432,18 +431,24 @@
                 
                 var mesh = createDebugSphere(location, 0xffffff, "hexCentres", []);
                 
-                var smoothness = (simplex.noise2D(location.x*0.15+20000, location.z*0.15)+1)/2;
-                
-                location.y = simplex.noise2D(location.x*0.05, location.z*0.05)*3;
-                location.y += simplex.noise2D(location.x*0.01, location.z*0.01)*10*smoothness;
-                location.y += simplex.noise2D(location.x*0.001, location.z*0.001)*100;
-                location.y += simplex.noise2D(location.x*0.15, location.z*0.15)*1*smoothness;
+                location.y = getLocationHeight(location.x, location.z);
                 
                 var hex = {id: latestID++, centre: location, x:x, y:y, neighbours: [], neighboursData: [], debugModel: mesh, isHex:true, isRaw:true};
                 
                 hexArray.push(hex);
                 addHexToGlobalMap(x, y, hex);
                 return hex;
+            }
+            
+            function getLocationHeight(x, z, extraSmooth=1) {
+                var smoothness = (simplex.noise2D(x*0.15+20000, z*0.15)+1)/2;
+                
+                var h = simplex.noise2D(x*0.05, z*0.05)*3;
+                h += simplex.noise2D(x*0.01, z*0.01)*10*smoothness*extraSmooth;
+                h += simplex.noise2D(x*0.001, z*0.001)*100;
+                h += simplex.noise2D(x*0.15, z*0.15)*1*smoothness*extraSmooth;
+                
+                return h;
             }
             
             function finishHex(hex) {
