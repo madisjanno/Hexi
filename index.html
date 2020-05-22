@@ -321,15 +321,8 @@
             }
             
             function updateCentreLocationHeight() {
-                /*
-                var raycaster = new THREE.Raycaster(screenCentreLocation.clone().add(new THREE.Vector3(0,10000,0)), new THREE.Vector3(0,-1,0));
-                var intersects = raycaster.intersectObjects( activeChunks )[0];
-                if (intersects) {
-                    screenCentreLocation.y = intersects.point.y*0.005+screenCentreLocation.y*0.995;
-                }
-                */
                 
-                screenCentreLocation.y = getLocationHeight(screenCentreLocation.x, screenCentreLocation.z, 0);
+                screenCentreLocation.y = getLocationHeight(screenCentreLocation.x, screenCentreLocation.z, 0)*0.1+screenCentreLocation.y*0.9;
                 
                 updateCameraLocation();
             }
