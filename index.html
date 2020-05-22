@@ -436,6 +436,7 @@
                 
                 location.y = simplex.noise2D(location.x*0.05, location.z*0.05)*3;
                 location.y += simplex.noise2D(location.x*0.01, location.z*0.01)*10*smoothness;
+                location.y += simplex.noise2D(location.x*0.001, location.z*0.001)*100;
                 location.y += simplex.noise2D(location.x*0.15, location.z*0.15)*1*smoothness;
                 
                 var hex = {id: latestID++, centre: location, x:x, y:y, neighbours: [], neighboursData: [], debugModel: mesh, isHex:true, isRaw:true};
