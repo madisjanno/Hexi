@@ -69,6 +69,8 @@
             var horAngle = 0.0;
             var vertAngle = 3.14/3.14;
             
+            var keys = new Set();
+            
 		
 			function onLoad() {
                 
@@ -181,8 +183,8 @@
                     }
                 }, false );
                 renderer.domElement.addEventListener( 'wheel', event => {
-                    if (event.altKey) {
-                        /*
+                    if (keys.has("z")) {
+                        
                         var raycaster = new THREE.Raycaster();
                         var mouse = new THREE.Vector2();
                         mouse.x = ( event.offsetX /width ) * 2 - 1;
@@ -191,41 +193,80 @@
                         raycaster.setFromCamera( mouse, camera );
 
                         var intersects = raycaster.intersectObjects( activeChunkMeshes )[0];
-
+                        
                         if (intersects) {
-                            var closestDist = 1000000;
+                            
                             var closest = undefined;
-                            for (hex of hexArray) {
+                            var closestDist = 10000000000;
+                            
+                            var chunk = intersects.object.chunk;
+                            
+                            for (hex of chunk.hexes) {
                                 var dist = hex.centre.distanceToSquared(intersects.point);
                                 if (dist < closestDist) {
                                     closestDist = dist;
                                     closest = hex;
                                 }
                             }
-                            closest.centre.y += event.deltaY*0.003;
-                            closest.debugModel.position.y += event.deltaY*0.003;
+                            
+                            if (event.deltaY > 0)
+                                closest.centre.y += 0.2;
+                            else
+                                closest.centre.y -= 0.2;
+                            
+                            finishHex(closest);
+                            closest.isRaw = true;
+                            for (var h of closest.neighbours) {
+                                h.isRaw = true;
+                                finishHex(h);
+                            }
+                            
+                            pregenerateHexGeometry([closest], regenerate=true);
+                            
+                            for (var x = chunk.x-1; x < chunk.x+2; x++) {
+                                for (var y = chunk.y-1; y < chunk.y+2; y++) {
+                                    if (chunkMap.has(x))
+                                        if (chunkMap.get(x).has(y)) {
+                                            var updatingChunk = chunkMap.get(x).get(y);
+                                            
+                                            if (updatingChunk.mesh) {
+                                                scene.remove(updatingChunk.mesh);
+                                                updatingChunk.mesh.geometry.dispose();
+                                                activeChunkMeshes.splice(activeChunkMeshes.indexOf(updatingChunk.mesh), 1);
+                                                
+                                                var terrainGeom = createTerrainGeometry(updatingChunk.hexes);
+                                                terrainGeom.computeVertexNormals();
+                                                var mesh = new THREE.Mesh( terrainGeom, terrainMaterial );
+                                                scene.add(mesh);
 
-                            pregenerateHexGeometry(hexArray, regenerate=true);
-
-                            scene.remove(chunk);
-                            chunk.geometry.dispose();
-
-                            pregenerateHexGeometry(hexArray, regenerate=true);
-
-                            var terrainGeom = createTerrainGeometry(hexArray.filter(h => h.active));
-                            terrainGeom.computeVertexNormals();
-                            var mesh = new THREE.Mesh( terrainGeom, terrainMaterial );
-                            scene.add(mesh);
-                            chunk = mesh;
+                                                mesh.chunk = updatingChunk;
+                                                updatingChunk.mesh = mesh;
+                                                activeChunkMeshes.push(mesh);
+                                            }
+                                        }
+                                }
+                            }
+                            
                         }
-                        */
+                        
+                        
                     } else {
-                        zoom += event.deltaY*0.01;
+                        if (event.deltaY > 0) {
+                            zoom *= 1.1;
+                        } else {
+                            zoom /= 1.1;
+                        }
                         updateCameraLocation();
                         
                         if (dragging)
                             fixGrabbedPosition(event);
                     }
+                }, false );
+                document.addEventListener( 'keydown', event => {
+                    keys.add(event.key);
+                }, false );
+                document.addEventListener( 'keyup', event => {
+                    keys.delete(event.key);
                 }, false );
                 
                 renderer.domElement.addEventListener('contextmenu', function(e) {
@@ -263,7 +304,7 @@
             
             function updateCentreLocationHeight() {
                 
-                screenCentreLocation.y = getLocationHeight(screenCentreLocation.x, screenCentreLocation.z, 0)*0.1+screenCentreLocation.y*0.9;
+                screenCentreLocation.y = getLocationHeight(screenCentreLocation.x, screenCentreLocation.z, 0)*1.0+screenCentreLocation.y*0.0;
                 
                 updateCameraLocation();
             }
@@ -274,13 +315,23 @@
                 var offset = new THREE.Vector3(zoom*Math.sin(horAngle)*Math.cos(vertAngle), zoom*Math.sin(vertAngle), zoom*Math.cos(horAngle)*Math.cos(vertAngle) );
                 camera.position.add(offset);
                 
-                var l_h = getLocationHeight(camera.position.x, camera.position.z)+0.5;
+                var l_h = getLocationHeight(camera.position.x, camera.position.z)+1.5;
                 if (l_h > camera.position.y) {
                     var h = l_h-screenCentreLocation.y;
                     var hypo = new THREE.Vector3(camera.position.x, l_h, camera.position.z).distanceTo(screenCentreLocation);
 
                     vertAngle = Math.asin(h/hypo);
                 }
+                
+                if (vertAngle > 3.14/2)
+                    vertAngle = 3.14/2;
+                
+                
+                camera.position.copy(screenCentreLocation);
+                
+                var offset = new THREE.Vector3(zoom*Math.sin(horAngle)*Math.cos(vertAngle), zoom*Math.sin(vertAngle), zoom*Math.cos(horAngle)*Math.cos(vertAngle) );
+                camera.position.add(offset);
+                
                 
                 camera.lookAt(screenCentreLocation);
                 camera.updateMatrixWorld(true);
@@ -496,7 +547,7 @@
             
             function createGUI() {
                 var gui = new dat.GUI();
-                
+                /*
                 var funcs = {};
                 function wrap(cat) {
                     return ()=>{debugCategories[cat].visible = !debugCategories[cat].visible}
@@ -506,7 +557,7 @@
                     funcs[cat] = wrap(cat);
                     gui.add(funcs, cat);
                 }
-                
+                */
                 gui.add(this, "paused");
             }
  
@@ -517,14 +568,33 @@
                 stats.begin();
                 tick += 1;
                 
-                //updateCameraLocation();
+                
+                if (keys.has("w")) {
+                    screenCentreLocation.add(new THREE.Vector3(-Math.sin(horAngle)*zoom*0.01, 0, -Math.cos(horAngle)*zoom*0.01));
+                    updateCentreLocationHeight();
+                }
+                if (keys.has("s")) {
+                    screenCentreLocation.add(new THREE.Vector3(Math.sin(horAngle)*zoom*0.01, 0, Math.cos(horAngle)*zoom*0.01));
+                    updateCentreLocationHeight();
+                }
+                if (keys.has("a")) {
+                    screenCentreLocation.add(new THREE.Vector3(Math.sin(horAngle-3.14/2)*zoom*0.01, 0, Math.cos(horAngle-3.14/2)*zoom*0.01));
+                    updateCentreLocationHeight();
+                }
+                if (keys.has("d")) {
+                    screenCentreLocation.add(new THREE.Vector3(Math.sin(horAngle+3.14/2)*zoom*0.01, 0, Math.cos(horAngle+3.14/2)*zoom*0.01));
+                    updateCentreLocationHeight();
+                }
+                
+                
+                
                 var chunkSize = 10;
                 
                 var hexLoc = getHexLocation(screenCentreLocation);
                 var chunkLocX = Math.floor(hexLoc[0]/chunkSize);
                 var chunkLocY = Math.floor(hexLoc[1]/chunkSize);
                 
-                var range = Math.floor(5*Math.sqrt(zoom)/chunkSize)+1;
+                var range = Math.floor(zoom/chunkSize/2)+2;
                 
                 if (!paused) {
                 
@@ -567,7 +637,7 @@
                 for (var i = 0; i < activeChunks.length; i++) {
                     var chunk = activeChunks[i];
                     
-                    if (Math.abs(chunk.x-chunkLocX) > range*2 || Math.abs(chunk.y-chunkLocY) > range*2) {
+                    if (Math.abs(chunk.x-chunkLocX) > range*4 || Math.abs(chunk.y-chunkLocY) > range*4) {
                         deleteChunk(chunk);
                         i--;
                     }
@@ -676,9 +746,14 @@
 	</head>
 	<body onload="onLoad()">
 		<div id="myCanvasContainer"></div>
-		<div id="statusContainer">
-			<span>Test</span>
-			<span>C1</span>
+		<div id="Instructions1">
+			<span>WASD / Click and drag to move</span>
+		</div>
+        <div id="Instructions2">
+            <span>Mousewheel to zoom</span>
+		</div>
+        <div id="Instructions3">
+            <span>Mousewheel + z to alter height of hex you are pointing to</span>
 		</div>
 	</body>
 </html>
