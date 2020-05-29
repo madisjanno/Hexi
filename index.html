@@ -601,7 +601,7 @@
                 
                 
                 
-                var chunkSize = 10;
+                var chunkSize = 8;
                 
                 var hexLoc = getHexLocation(screenCentreLocation);
                 var chunkLocX = Math.floor(hexLoc[0]/chunkSize);
@@ -647,13 +647,12 @@
                         i--;
                     }
                 }
-                
+                    
                 do {
                     if (meshCreationQueue.length > 0)
                         updateChunkMesh(meshCreationQueue.shift());
                     else break;
                 } while (Date.now() - start < 33);
-                    
                     
                 }
                 renderer.render( scene, camera );
