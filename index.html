@@ -43,15 +43,15 @@
             // STUFF
             var hexMap = new Map();
             var chunkMap = new Map();
+            var activeChunkMeshes = [];
             var activeChunks = [];
             
-            var hexes = [];
             var hexArray = [];
+            var freeIndices = [];
             
             var triplets = [];
             
             var edges = [];
-            var edgeArray = [];
             
             var simplex = new SimplexNoise();
             
@@ -133,67 +133,6 @@
                 }
                 
                 
-                
-                
-                /*
-                generateRawChunk(-2,1,5);
-                generateRawChunk(-1,1,5); generateRawChunk(0,1,5); generateRawChunk(1,1,5);
-                generateRawChunk(-2,0,5);
-                generateRawChunk(-1,0,5); generateRawChunk(0,0,5); generateRawChunk(1,0,5);
-                generateRawChunk(-2,-1,5);
-                generateRawChunk(-1,-1,5);generateRawChunk(0,-1,5);generateRawChunk(1,-1,5);
-                
-                finishChunk(getChunk(0,0));
-                finishChunk(getChunk(-1,0));
-                */
-                /*
-                for (var x = 0; x < 20; x++) {
-                    for (var y = 0; y < 20; y++) {
-                        generateRawChunk(x,y,5);
-                    }
-                }
-                
-                for (var x = 1; x < 20-1; x++) {
-                    for (var y = 1; y < 20-1; y++) {
-                        finishChunk(getChunk(x,y));
-                        
-                        pregenerateHexGeometry(getChunk(x,y).hexes);
-                        
-                        var geom = createTerrainGeometry(getChunk(x,y).hexes);
-                        geom.computeVertexNormals();
-                        
-                        var mesh = new THREE.Mesh(geom, terrainMaterial);
-                        
-                        scene.add(mesh);
-                        activeChunks.push(mesh);
-                    }
-                }
-                */
-                /*
-                pregenerateHexGeometry(getChunk(0,0).hexes);
-                var geom = createTerrainGeometry(getChunk(0,0).hexes);
-                geom.computeVertexNormals();
-                
-                var mesh = new THREE.Mesh(geom, terrainMaterial);
-                
-                scene.add(mesh);
-                activeChunks.push(mesh);
-                
-                
-                
-                
-                pregenerateHexGeometry(getChunk(-1,0).hexes);
-                var geom = createTerrainGeometry(getChunk(-1,0).hexes);
-                geom.computeVertexNormals();
-                
-                var mesh = new THREE.Mesh(geom, terrainMaterial);
-                
-                scene.add(mesh);
-                activeChunks.push(mesh);
-                */
-                
-                
-                
                 renderer.domElement.addEventListener( 'mousedown', event => {
                     if (event.button == 0) {
                         var raycaster = new THREE.Raycaster();
@@ -203,7 +142,7 @@
 
                         raycaster.setFromCamera( mouse, camera );
 
-                        var intersects = raycaster.intersectObjects( activeChunks )[0];
+                        var intersects = raycaster.intersectObjects( activeChunkMeshes )[0];
                         
                         grabPlane = new THREE.Plane(new THREE.Vector3(0,1,0), -intersects.point.y);
                         grabPoint = intersects.point;
@@ -243,6 +182,7 @@
                 }, false );
                 renderer.domElement.addEventListener( 'wheel', event => {
                     if (event.altKey) {
+                        /*
                         var raycaster = new THREE.Raycaster();
                         var mouse = new THREE.Vector2();
                         mouse.x = ( event.offsetX /width ) * 2 - 1;
@@ -250,7 +190,7 @@
 
                         raycaster.setFromCamera( mouse, camera );
 
-                        var intersects = raycaster.intersectObjects( activeChunks )[0];
+                        var intersects = raycaster.intersectObjects( activeChunkMeshes )[0];
 
                         if (intersects) {
                             var closestDist = 1000000;
@@ -278,6 +218,7 @@
                             scene.add(mesh);
                             chunk = mesh;
                         }
+                        */
                     } else {
                         zoom += event.deltaY*0.01;
                         updateCameraLocation();
@@ -314,7 +255,7 @@
 
                 raycaster.setFromCamera( mouse, camera );
 
-                var intersects = raycaster.intersectObjects( activeChunks )[0];
+                var intersects = raycaster.intersectObjects( activeChunkMeshes )[0];
 
                 grabPlane = new THREE.Plane(new THREE.Vector3(0,1,0), -intersects.point.y);
                 grabPoint = intersects.point;
@@ -360,6 +301,9 @@
                     hexMap.set(x, new Map());
                 }
                 
+                if (hexMap.get(x).has(y))
+                    throw new Error("Attempted to generate hex which already exists");
+                
                 hexMap.get(x).set(y, hex);
             }
             
@@ -396,26 +340,89 @@
                 }
                 
                 var chunk = {hexes:chunkHexes, x:x, y:y, size:size, isRaw:true}
+                
+                for (h of chunk.hexes)
+                    h.chunk = chunk;
+                
                 addChunkToGlobalMap(x, y, chunk);
+                return chunk;
             }
             
             // Requires surrounding raw chunks
             function finishChunk(chunk) {
+                
                 if (!chunk.isRaw)
                     return;
                 
                 for (hex of chunk.hexes) {
+                    
                     finishHex(hex);
                     
                     for (n of hex.neighbours) {
                         if (n.isRaw)
                             finishHex(n);
-                        for (n2 of n.neighbours)
+                        for (n2 of n.neighbours) {
                             finishHex(n2);
+                            for (n3 of n2.neighbours)
+                                finishHex(n3);
+                        }
                     }
                 }
                 
                 chunk.isRaw = false;
+            }
+            
+            function deleteChunk(chunk) {
+                
+                deleteChunkMesh(chunk);
+                
+                destroyPregeneratedHexGeometry(chunk.hexes);
+                
+                var chunkHexes = new Set(chunk.hexes);
+                for (var h of chunk.hexes) {
+                    for (n of h.neighbours)
+                        if (!chunkHexes.has(n)) {
+                            removePregeneratedGeometry(n);
+                            n.neighbours = [];
+                            n.neighboursData = [];
+                            n.isRaw = true;
+                        }
+                }
+                
+                for (var x = chunk.x-1; x < chunk.x+2; x++) {
+                    for (var y = chunk.y-1; y < chunk.y+2; y++) {
+                        if (x == chunk.x && y == chunk.y)
+                            continue;
+                        
+                        if (chunkMap.has(x))
+                            if (chunkMap.get(x).has(y)) {
+                                var c2 = getChunk(x,y);
+                                deleteChunkMesh(c2);
+                                c2.isRaw = true;
+                            }
+                    }
+                }
+                
+                for (var h of chunk.hexes) {
+                    hexArray[h.id] = undefined;
+                    freeIndices.push(h.id);
+                    
+                     if (!hexMap.get(h.x).delete(h.y))
+                         throw new Error("Could not delete hex");
+                }
+                
+                activeChunks.splice(activeChunks.indexOf(chunk), 1);
+                
+                chunkMap.get(chunk.x).delete(chunk.y);
+            }
+            
+            function deleteChunkMesh(chunk) {
+                if (chunk.mesh) {
+                    scene.remove(chunk.mesh);
+                    chunk.mesh.geometry.dispose();
+                    activeChunkMeshes.splice(activeChunkMeshes.indexOf(chunk.mesh),1);
+                    chunk.mesh = undefined;
+                }
             }
             
             var latestID = 0;
@@ -426,10 +433,21 @@
                 
                 location.y = getLocationHeight(location.x, location.z);
                 
-                var hex = {id: latestID++, centre: location, x:x, y:y, neighbours: [], neighboursData: [], debugModel: mesh, isHex:true, isRaw:true};
+                var id = -1;
+                if (freeIndices.length > 0)
+                    id = freeIndices.pop();
+                else
+                    id = latestID++;
                 
-                hexArray.push(hex);
+                var hex = {id: id, centre: location, x:x, y:y, neighbours: [], neighboursData: [], debugModel: mesh, isHex:true, isRaw:true};
+                
+                if (hex.id < hexArray.length)
+                    hexArray[hex.id] = hex;
+                else
+                    hexArray.push(hex);
+                
                 addHexToGlobalMap(x, y, hex);
+                
                 return hex;
             }
             
@@ -457,7 +475,6 @@
                 
                 for (n of hex.neighbours) {
                     if (!n) {
-                        console.log(hex)
                         throw new Error("Did not find neighbours")
                     }
                 }
@@ -507,14 +524,17 @@
                 var chunkLocX = Math.floor(hexLoc[0]/chunkSize);
                 var chunkLocY = Math.floor(hexLoc[1]/chunkSize);
                 
-                var range = Math.floor(5*Math.sqrt(zoom)/chunkSize);
+                var range = Math.floor(5*Math.sqrt(zoom)/chunkSize)+1;
+                
+                if (!paused) {
                 
                 for (var x = -range; x < range+1; x++) {
                     for (var y = -range; y < range+1; y++) {
                         if (chunkMap.has(chunkLocX+x))
                             if (chunkMap.get(chunkLocX+x).has(chunkLocY+y))
                                 continue;
-                        generateRawChunk(chunkLocX+x, chunkLocY+y, chunkSize);
+                        var chunk = generateRawChunk(chunkLocX+x, chunkLocY+y, chunkSize);
+                        activeChunks.push(chunk);
                     }
                 }
                 
@@ -522,6 +542,7 @@
                     for (var y = -range+1; y < range; y++) {
                         var chunk = chunkMap.get(chunkLocX+x).get(chunkLocY+y);
                         if (chunk.isRaw) {
+                            
                             finishChunk(chunk);
 
                             pregenerateHexGeometry(chunk.hexes);
@@ -531,27 +552,28 @@
                             geom.computeBoundingBox();
 
                             var mesh = new THREE.Mesh(geom, terrainMaterial);
+                            
+                            chunk.mesh = mesh;
+                            mesh.chunk = chunk;
 
                             scene.add(mesh);
                             mesh.actualLoc = getBaseHexLocation((chunkLocX+x)*chunkSize, (chunkLocY+y)*chunkSize);
-                            activeChunks.push(mesh);
+                            activeChunkMeshes.push(mesh);
                             mesh.chunk = chunk;
                         }
                     }
                 }
                 
-                /*
-                for (c of activeChunks) {
-                    if (c.actualLoc.distanceTo(camera.position) > zoom*zoom) {
-                        scene.remove(c);
-                        c.geometry.dispose();
-                        
-                        var index = activeChunks.indexOf(c);
-                        activeChunks.splice(index, 1);
-                        c.chunk.isRaw = true;
+                for (var i = 0; i < activeChunks.length; i++) {
+                    var chunk = activeChunks[i];
+                    
+                    if (Math.abs(chunk.x-chunkLocX) > range*2 || Math.abs(chunk.y-chunkLocY) > range*2) {
+                        deleteChunk(chunk);
+                        i--;
                     }
                 }
-                */
+                
+                }
                 renderer.render( scene, camera );
                 
                 stats.end();

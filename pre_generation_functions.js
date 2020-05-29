@@ -11,6 +11,7 @@ function createDebugSphere(position, color, category, internalList) {
 }
 
 function pregenerateHexGeometry(hexes, regenerate=false) {
+    
     var neighbours = new Set(hexes);
     for (h of hexes) {
         for (n of h.neighbours)
@@ -28,6 +29,23 @@ function pregenerateHexGeometry(hexes, regenerate=false) {
     generateHexTriplets(Array.from(neighbours), regenerate);
     
     finishEdges(newEdges);
+}
+
+// DELETION
+
+function destroyPregeneratedHexGeometry(hexes) {
+    for (hex of hexes) {
+        removePregeneratedGeometry(hex);
+    }
+}
+
+function removePregeneratedGeometry(hex) {
+    for (var i = 0; i < hex.neighbours.length; i++) {
+        var j = (i+1) % hex.neighbours.length;
+        
+        deleteEdge(hex, hex.neighbours[i]);
+        deleteTriplet(hex, hex.neighbours[i], hex.neighbours[j]);
+    }
 }
 
 // TRIPLET FUNCTIONS
@@ -66,6 +84,37 @@ function getTriplet(a,b,c, generate=false) {
         return n;
     } else
         throw new Error("Triplet " + [a,b,c] + " not found.")
+}
+
+function deleteTriplet(a,b,c) {
+    if (a.isHex)
+        a = a.id;
+    if (b.isHex)
+        b = b.id;
+    if (c.isHex)
+        c = c.id;
+
+    // order id's
+    if (a > b) {
+        a = b + (b=a, 0)
+    }
+    if (b > c) {
+        c = b + (b=c, 0)
+
+        if (a > b) {
+            a = b + (b=a, 0)
+        }
+    }
+    
+    if (triplets[a]) {
+        for (var i = 0; i < triplets[a].length; i++) {
+            var p = triplets[a][i];
+            if (p.b == b && p.c == c) {
+                triplets[a].splice(i, 1);
+                i -= 1;
+            }
+        }
+    }
 }
 
 function generateHexTriplets(hexes, regenerate = false) {
@@ -244,6 +293,27 @@ function getEdge(a,b, generate = false) {
         throw new Error("Edge " + [a,b] + " not found.")
 }
 
+function deleteEdge(a,b) {
+    if (a.isHex)
+        a = a.id;
+    if (b.isHex)
+        b = b.id;
+
+    if (a > b) {
+        a = b + (b=a, 0)
+    }
+    
+    if (edges[a]) {
+        for (var i = 0; i < edges[a].length; i++) {
+            var p = edges[a][i];
+            if (p.b == b) {
+                edges[a].splice(i,1);
+                i--;
+            }
+        }
+    }
+}
+
 function generateHexEdges(hexes, regenerate = false) {
     var regennedSet = new Set();
     
@@ -277,14 +347,18 @@ function generateEdge(a,b, regenerate=false) {
     }
     edge.spheres = [];
 
+    var flag = true;
     for (d of a.neighboursData) {
         if (d.hex == b) {
             edge.cliff = d.cliff;
+            flag = false;
             break;
         }
     }
-
-    edgeArray.push(edge);
+    if (flag) {
+        console.log(a, b)
+        throw new Error("Edge not found in neighboursData");
+    }
 
     return edge;
 }
