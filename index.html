@@ -55,6 +55,8 @@
             
             var simplex = new SimplexNoise();
             
+            var meshCreationQueue = [];
+            
             // UI
             var dragging = false;
             var grabPlane;
@@ -230,18 +232,7 @@
                                             var updatingChunk = chunkMap.get(x).get(y);
                                             
                                             if (updatingChunk.mesh) {
-                                                scene.remove(updatingChunk.mesh);
-                                                updatingChunk.mesh.geometry.dispose();
-                                                activeChunkMeshes.splice(activeChunkMeshes.indexOf(updatingChunk.mesh), 1);
-                                                
-                                                var terrainGeom = createTerrainGeometry(updatingChunk.hexes);
-                                                terrainGeom.computeVertexNormals();
-                                                var mesh = new THREE.Mesh( terrainGeom, terrainMaterial );
-                                                scene.add(mesh);
-
-                                                mesh.chunk = updatingChunk;
-                                                updatingChunk.mesh = mesh;
-                                                activeChunkMeshes.push(mesh);
+                                                updateChunkMesh(updatingChunk);
                                             }
                                         }
                                 }
@@ -560,10 +551,32 @@
                 */
                 gui.add(this, "paused");
             }
+            
+            function updateChunkMesh(chunk) {
+                if (chunk.isRaw)
+                    return;
+                
+                if (chunk.mesh) {
+                    scene.remove(chunk.mesh);
+                    chunk.mesh.geometry.dispose();
+                    activeChunkMeshes.splice(activeChunkMeshes.indexOf(chunk.mesh), 1);
+                }
+
+                var terrainGeom = createTerrainGeometry(chunk.hexes);
+                terrainGeom.computeVertexNormals();
+                var mesh = new THREE.Mesh( terrainGeom, terrainMaterial );
+                scene.add(mesh);
+
+                mesh.chunk = chunk;
+                chunk.mesh = mesh;
+                activeChunkMeshes.push(mesh);
+            }
  
 			var tick = 0
 			function draw() {
                 requestAnimationFrame(draw);
+                
+                var start = Date.now();
                 
                 stats.begin();
                 tick += 1;
@@ -616,20 +629,9 @@
                             finishChunk(chunk);
 
                             pregenerateHexGeometry(chunk.hexes);
-
-                            var geom = createTerrainGeometry(chunk.hexes);
-                            geom.computeVertexNormals();
-                            geom.computeBoundingBox();
-
-                            var mesh = new THREE.Mesh(geom, terrainMaterial);
                             
-                            chunk.mesh = mesh;
-                            mesh.chunk = chunk;
-
-                            scene.add(mesh);
-                            mesh.actualLoc = getBaseHexLocation((chunkLocX+x)*chunkSize, (chunkLocY+y)*chunkSize);
-                            activeChunkMeshes.push(mesh);
-                            mesh.chunk = chunk;
+                            //updateChunkMesh(chunk);
+                            meshCreationQueue.push(chunk);
                         }
                     }
                 }
@@ -639,10 +641,20 @@
                     
                     if (Math.abs(chunk.x-chunkLocX) > range*4 || Math.abs(chunk.y-chunkLocY) > range*4) {
                         deleteChunk(chunk);
+                        var pos = meshCreationQueue.indexOf(chunk)
+                        if (pos != -1)
+                            meshCreationQueue.splice(pos, 1);
                         i--;
                     }
                 }
                 
+                do {
+                    if (meshCreationQueue.length > 0)
+                        updateChunkMesh(meshCreationQueue.shift());
+                    else break;
+                } while (Date.now() - start < 33);
+                    
+                    
                 }
                 renderer.render( scene, camera );
                 
