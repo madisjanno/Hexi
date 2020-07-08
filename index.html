@@ -187,43 +187,29 @@
                 renderer.domElement.addEventListener( 'wheel', event => {
                     if (keys.has("z")) {
                         
-                        var raycaster = new THREE.Raycaster();
                         var mouse = new THREE.Vector2();
                         mouse.x = ( event.offsetX /width ) * 2 - 1;
                         mouse.y = - ( event.offsetY / height ) * 2 + 1;
-
-                        raycaster.setFromCamera( mouse, camera );
-
-                        var intersects = raycaster.intersectObjects( activeChunkMeshes )[0];
                         
-                        if (intersects) {
+                        var hex = getPointedHex(mouse);
+                        
+                        if (hex) {
                             
-                            var closest = undefined;
-                            var closestDist = 10000000000;
-                            
-                            var chunk = intersects.object.chunk;
-                            
-                            for (hex of chunk.hexes) {
-                                var dist = hex.centre.distanceToSquared(intersects.point);
-                                if (dist < closestDist) {
-                                    closestDist = dist;
-                                    closest = hex;
-                                }
-                            }
+                            var chunk = hex.chunk;
                             
                             if (event.deltaY > 0)
-                                closest.centre.y += 0.2;
+                                hex.centre.y += 0.2;
                             else
-                                closest.centre.y -= 0.2;
+                                hex.centre.y -= 0.2;
                             
-                            finishHex(closest);
-                            closest.isRaw = true;
-                            for (var h of closest.neighbours) {
+                            finishHex(hex);
+                            hex.isRaw = true;
+                            for (var h of hex.neighbours) {
                                 h.isRaw = true;
                                 finishHex(h);
                             }
                             
-                            pregenerateHexGeometry([closest], regenerate=true);
+                            pregenerateHexGeometry([hex], regenerate=true);
                             
                             for (var x = chunk.x-1; x < chunk.x+2; x++) {
                                 for (var y = chunk.y-1; y < chunk.y+2; y++) {
@@ -264,9 +250,38 @@
                     e.preventDefault();
                 }, false);
                 
+                //console.log(THREE.ShaderChunk["shadowmask_pars_fragment"]); +
+                //console.log(THREE.ShaderChunk["shadowmap_pars_fragment"]);
+                
+                //console.log(THREE.ShaderChunk);
+                
                 createGUI();
 				draw();
 			}
+            
+            function getPointedHex(mouseVec) {
+                var raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera( mouseVec, camera );
+
+                var intersects = raycaster.intersectObjects( activeChunkMeshes )[0];
+                
+                if (intersects) {
+                    var closest = undefined;
+                    var closestDist = 10000000000;
+
+                    var chunk = intersects.object.chunk;
+
+                    for (hex of chunk.hexes) {
+                        var dist = hex.centre.distanceToSquared(intersects.point);
+                        if (dist < closestDist) {
+                            closestDist = dist;
+                            closest = hex;
+                        }
+                    }
+                    
+                    return closest;
+                }
+            }
             
             function fixGrabbedPosition(event) {
                 var raycaster = new THREE.Raycaster();
@@ -611,49 +626,49 @@
                 
                 if (!paused) {
                 
-                for (var x = -range; x < range+1; x++) {
-                    for (var y = -range; y < range+1; y++) {
-                        if (chunkMap.has(chunkLocX+x))
-                            if (chunkMap.get(chunkLocX+x).has(chunkLocY+y))
-                                continue;
-                        var chunk = generateRawChunk(chunkLocX+x, chunkLocY+y, chunkSize);
-                        activeChunks.push(chunk);
-                    }
-                }
-                
-                for (var x = -range+1; x < range; x++) {
-                    for (var y = -range+1; y < range; y++) {
-                        var chunk = chunkMap.get(chunkLocX+x).get(chunkLocY+y);
-                        if (chunk.isRaw) {
-                            
-                            finishChunk(chunk);
-
-                            pregenerateHexGeometry(chunk.hexes);
-                            
-                            //updateChunkMesh(chunk);
-                            meshCreationQueue.push(chunk);
+                    for (var x = -range; x < range+1; x++) {
+                        for (var y = -range; y < range+1; y++) {
+                            if (chunkMap.has(chunkLocX+x))
+                                if (chunkMap.get(chunkLocX+x).has(chunkLocY+y))
+                                    continue;
+                            var chunk = generateRawChunk(chunkLocX+x, chunkLocY+y, chunkSize);
+                            activeChunks.push(chunk);
                         }
                     }
-                }
-                
-                for (var i = 0; i < activeChunks.length; i++) {
-                    var chunk = activeChunks[i];
-                    
-                    if (Math.abs(chunk.x-chunkLocX) > range*4 || Math.abs(chunk.y-chunkLocY) > range*4) {
-                        deleteChunk(chunk);
-                        var pos = meshCreationQueue.indexOf(chunk)
-                        if (pos != -1)
-                            meshCreationQueue.splice(pos, 1);
-                        i--;
+
+                    for (var x = -range+1; x < range; x++) {
+                        for (var y = -range+1; y < range; y++) {
+                            var chunk = chunkMap.get(chunkLocX+x).get(chunkLocY+y);
+                            if (chunk.isRaw) {
+                                finishChunk(chunk);
+                                meshCreationQueue.push(chunk);
+                            }
+                        }
                     }
-                }
+
+                    for (var i = 0; i < activeChunks.length; i++) {
+                        var chunk = activeChunks[i];
+
+                        if (Math.abs(chunk.x-chunkLocX) > range*4 || Math.abs(chunk.y-chunkLocY) > range*4) {
+                            deleteChunk(chunk);
+                            var pos = meshCreationQueue.indexOf(chunk)
+                            if (pos != -1)
+                                meshCreationQueue.splice(pos, 1);
+                            i--;
+                        }
+                    }
                     
-                do {
-                    if (meshCreationQueue.length > 0)
-                        updateChunkMesh(meshCreationQueue.shift());
-                    else break;
-                } while (Date.now() - start < 16);
-                    
+                    var count = 0;
+                    do {
+                        if (meshCreationQueue.length > 0) {
+                            var chunk = meshCreationQueue.shift();
+                            pregenerateHexGeometry(chunk.hexes);
+                            updateChunkMesh(chunk);
+                            count++;
+                        }
+                        else break;
+                    } while (Date.now() - start < 8);
+                    //console.log(count);
                 }
                 renderer.render( scene, camera );
                 
@@ -743,7 +758,7 @@
                 
                 //texColor = vec3(1.0);
             
-                gl_FragColor = vec4( texColor*0.025 + max(dot(n,l), 0.0)*texColor + texColor*pow(max(dot(viewerDir, reflection), 0.0), 2000.0), 1.0);
+                gl_FragColor = vec4( texColor*0.025 + max(dot(n,l), 0.0)*texColor*2.0 + texColor*pow(max(dot(viewerDir, reflection), 0.0), 2000.0), 1.0);
                 
                 //gl_FragColor.rgb = texColor;
                 //gl_FragColor.rgb = vec3(1.0-pow(sqweightsum, 1.0/5.0));
