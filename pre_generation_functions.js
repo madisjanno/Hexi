@@ -348,13 +348,27 @@ function generateEdge(a,b, regenerate=false) {
     edge.spheres = [];
 
     var flag = true;
+    //for (var i = 0; i < a.neighboursData.length; i++)
     for (d of a.neighboursData) {
         if (d.hex == b) {
             edge.cliff = d.cliff;
+            edge.singleCliff = d.singleCliff;
             flag = false;
             break;
         }
     }
+    for (d of b.neighboursData) {
+        if (d.hex == a) {
+            edge.cliff = edge.cliff && d.cliff;
+            edge.singleCliff = edge.singleCliff && d.singleCliff;
+            flag = false;
+            break;
+        }
+    }
+    
+    if (edge.singleCliff)
+        edge.cliff = false;
+    
     if (flag) {
         console.log(a, b)
         throw new Error("Edge not found in neighboursData");
